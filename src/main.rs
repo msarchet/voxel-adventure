@@ -84,8 +84,8 @@ fn setup(
     material_cache.chunk_material = Some(chunk_material);
 
     let center = Vector3Int { x: 0, y: 0, z: 0};
-    for x in -3..3 {
-        for z in -3..3 {
+    for x in -40..40 {
+        for z in -40..40 {
             state.chunks_load.push(Vector3Int { x: x, y: 0, z: z} + center);
         }
     }
@@ -176,11 +176,8 @@ fn queue_new_chunks(
 }
 
 fn generator(
-    material_cache: Res<MaterialCache>,
-    cube_meshes: Res<CubeMeshData>,
     mut state: ResMut<State>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
     mut query: Query<(Entity, &mut Chunk), With<Generate>>,
 ) {
     //noise_gen = noise_gen.set_frequency(0.00825);
@@ -190,46 +187,11 @@ fn generator(
         chunk.data.voxels = chunks::get_height_map(Vector3{x: chunk.coords.x as f64, y: chunk.coords.y as f64, z: chunk.coords.z as f64});
 
         run_first_pass_meshing(&mut chunk.data.voxels);
-        //let mesh_data = get_mesh_data(&chunk.data, &cube_meshes);
-        //let indices = mesh::Indices::U32(mesh_data.indicies);
-
-        //let mut chunk_mesh = mesh::Mesh::new(mesh::PrimitiveTopology::TriangleList);
-
-        //chunk_mesh.set_indices(Some(indices));
-        //chunk_mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, mesh_data.verticies);
-        //chunk_mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, mesh_data.normals);
-        //chunk_mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, mesh_data.uvs);
-
-        //let chunk_material;
-
-        //match &material_cache.chunk_material {
-        //    Some(material) => chunk_material = material.clone(),
-        //    None => panic!("no chunk mesh material set")
-        //}
-
-        //let mesh_id = commands.spawn_bundle(PbrBundle {
-        //    mesh: meshes.add(chunk_mesh),
-        //    material: chunk_material,
-        //    ..default()
-        //}).id();
-
-        //let sb = SpatialBundle {
-        //    transform: Transform::from_xyz(chunk.coords.x as f32 * 16.0, 0.0, chunk.coords.z as f32 * 16.0),
-        //    ..default()
-        //};
-
         state.chunks.insert_unique_unchecked(chunk.coords, entity.clone());
         commands.entity(entity).remove::<Generate>();
     }
 }
 
-fn clear_mesh_data (
-    mut query: Query<(Entity, &mut Chunk), With<GenerateFaces>>
-) {
-    for (_, mut chunk) in &mut query {
-        chunk.data.voxels.clear();
-    }
-}
 fn generate_full_edge_meshes (
     mut commands: Commands,
     mut set: ParamSet<(Query<(Entity, &Chunk), With<GenerateFaces>>,
@@ -241,8 +203,8 @@ fn generate_full_edge_meshes (
     let mut chunk_neighbors = Vec::<(Entity, Entity, Entity, Entity, Entity)>::new();
     let mut completed_chunks = HashMap::<Entity, Vec::<Voxel>>::new();
     for (e, chunk) in &set.p0() {
-        let left = chunk.coords + Vector3Int{ x:0, y: 0, z:-1 };
-        let right = chunk.coords + Vector3Int{ x: 0, y: 0, z: 1};
+        let left = chunk.coords + Vector3Int{ x:0, y: 0, z:1 };
+        let right = chunk.coords + Vector3Int{ x: 0, y: 0, z: -1};
         let forward = chunk.coords + Vector3Int { x: 1, y: 0, z: 0};
         let backward = chunk.coords + Vector3Int { x: -1, y: 0, z: 0};
 
@@ -323,7 +285,7 @@ fn generate_full_edge_meshes (
         match completed_chunks.get(&e) {
             Some (voxels) => {
                 update_chunk.data.voxels = voxels.to_vec();
-                println!("chunk {},{},{}", update_chunk.coords.x, update_chunk.coords.y, update_chunk.coords.z);
+                //println!("chunk {},{},{}", update_chunk.coords.x, update_chunk.coords.y, update_chunk.coords.z);
                 commands.entity(e).remove::<GenerateFaces>();
                 commands.entity(e).insert(Render);
             },

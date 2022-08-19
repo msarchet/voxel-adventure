@@ -53,21 +53,25 @@ fn get_voxel_edges() -> [Vec<(usize, usize)>;4] {
 	let max_x = 15;
 	let max_z = 15;
 
+	// get indicies for both sies of the Z seam
 	for y in 0..128 {
 		for x in 0..16 {
-			let right_index = voxel_helpers::get_index(x, y, max_z);
-			let left_index = voxel_helpers::get_index(x, y, 0);
-			voxels[0].push((right_index, left_index)); // right
-			voxels[1].push((left_index, right_index)); // left
+			// positions are relative to the seam
+			let left_index = voxel_helpers::get_index(x, y, max_z);
+			let right_index = voxel_helpers::get_index(x, y, 0);
+			voxels[0].push((left_index, right_index)); // left +z 
+			voxels[1].push((right_index, left_index)); // right -z
 		}
 	}
 
+	// get indicies for boths sides of the X seam
 	for y in 0..128 {
 		for z in 0..16 {
-			let backward_index = voxel_helpers::get_index(max_x, y, z);
 			let forward_index = voxel_helpers::get_index(0, y, z);
-			voxels[2].push((backward_index, forward_index)); // backwad
-			voxels[3].push((forward_index, backward_index)); // forward
+			// ---- seam +x ^
+			let backward_index = voxel_helpers::get_index(max_x, y, z);
+			voxels[2].push((backward_index, forward_index)); // forward +x
+			voxels[3].push((forward_index, backward_index)); // backward -x
 		}
 	}
 
@@ -210,16 +214,17 @@ pub fn update_edge_meshes(our_voxels: &mut Vec<Voxel>,
 	not_our_face: u64,
 ) {
 	for (ours_index, their_index) in edge_lookup_pairs {
-		let ours = our_voxels[*ours_index];
-		let theirs = their_voxels[*their_index];
-		if !voxel_helpers::is_filled(ours) { continue; }
+		let ours = our_voxels[ours_index.clone()];
+		let theirs = their_voxels[their_index.clone()];
+
+		if !voxel_helpers::is_filled(ours) { continue }
 
 		let our_mesh_data = voxel_helpers::get_mesh_data(ours);
 
 		if voxel_helpers::should_create_face(ours, theirs) {
-			our_voxels[*ours_index] = voxel_helpers::set_mesh_data(ours, our_mesh_data | our_face);
+			our_voxels[ours_index.clone()] = voxel_helpers::set_mesh_data(ours, our_mesh_data | our_face);
 		} else {
-			our_voxels[*ours_index] = voxel_helpers::set_mesh_data(ours, our_mesh_data & not_our_face);
+			our_voxels[ours_index.clone()] = voxel_helpers::set_mesh_data(ours, our_mesh_data & not_our_face);
 		}
 	}	
 }
