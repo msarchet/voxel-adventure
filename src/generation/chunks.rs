@@ -2,9 +2,9 @@ use crate::common::types::*;
 use crate::common::voxels::voxel_helpers;
 use crate::generation::noise::*;
 use noise::*;
-use bevy::utils::HashMap;
 
 
+#[allow(dead_code)]
 fn interpolate (lower: f64, upper: f64, value: f64) -> f64 {
 	let range = upper - lower;
 	lower + value * range
@@ -14,74 +14,131 @@ pub fn get_height_map(coords: Vector3) -> Vec<Voxel>{
 	let mut voxels: Vec<Voxel> = vec![0;16*16*128];
     let height_map_gen = OpenSimplex::new();
 	let mut y0: f64;
-	let mut blobNoise: f64;
-	let mut blockVariantNoise: f64;
-	let mut heightNoise: f64;
+	let mut _blob_noise: f64;
+	let mut block_variant_noise: f64;
+	let mut height_noise: f64;
 	let mut height ;
-	let mut heightNoiseSmoother;
-	let mut depthAdjustNoise;
-	let mut depthAdjust;
-	let mut biomeNoise;
-	let mut oceanNoise;
-	let mut plainsNoise;
-	let mut mountainNoise;
-	let mut oceanWeight;
-	let mut plainsWeight;
-	let mut mountainWeight;
+	let mut height_noise_smoother;
+	let mut depth_adjust_noise;
+	let mut depth_adjust;
+	let mut biome_noise;
+	let mut ocean_noise;
+	let mut plains_noise;
+	let mut mountain_noise;
+	let mut ocean_weight;
+	let mut plains_weight;
+	let mut mountain_weight;
 	let mut interpolated;
 
+	let height_seed = 90853;
+	let depth_adjust_seed= 4958;
+	let biome_seed = 1495;
+
+	let height_noise_freq = 0.00825;
+	let height_noise_smooth_freq = 0.00085;
+	let depth_adjust_noise_freq = 0.002125;
+	let biome_noise_freq = 0.00155;
+	let height_range = 100.0;
+	let min_height = 20;
+	let offset_x = coords.x * 16.0;
+	let offset_z = coords.z * 16.0; 
+
+	let mut height_noise_points = [0.0, 0.0];
+	let mut height_noise_smoother_points = [0.0, 0.0];
+	let mut depth_adjust_points = [0.0, 0.0];
+	let mut biome_noise_points = [0.0, 0.0];
+
 	for x in 0..16u16 {
-		let x0 = x as f64 + (coords.x * 16.0) as f64;
+		let x0 = x as f64 + offset_x;
+		height_noise_points[0] = x0 * height_noise_freq;
+		height_noise_smoother_points[0] = x0 * height_noise_smooth_freq;
+		depth_adjust_points[0] = x0 * depth_adjust_noise_freq;
+		biome_noise_points[0] = x0 * biome_noise_freq;
 		for z in 0..16u16 {
-			let z0 = z as f64 + (coords.z as f64 * 16.0);
+			let z0 = z as f64 + offset_z;
+			height_noise_points[1] = z0 * height_noise_freq;
+			height_noise_smoother_points[1] = z0 * height_noise_smooth_freq;
+			depth_adjust_points[1] = z0 * depth_adjust_noise_freq;
+			biome_noise_points[1] = z0 * biome_noise_freq;
 
-			heightNoise = noise_with_octaves_vec2_01(height_map_gen,[x0 * 0.00825, z0 * 0.00825], 8, 3498, 1.0);
-			heightNoise = f64::powf(heightNoise, 1.2);
+			height_noise = noise_with_octaves_vec2_01(height_map_gen,height_noise_points, 8, height_seed, 1.0);
+			height_noise = f64::powf(height_noise, 1.2);
 
-			heightNoiseSmoother = noise_with_octaves_vec2_01(height_map_gen,[x0 * 0.00085, z0 * 0.00085],3, 123498, 1.0);
-			depthAdjustNoise = noise_with_octaves_vec2_01(height_map_gen,[x0 * 0.002125, z0 * 0.002125],  6, 239048, 1.0);
-			depthAdjust = depthAdjustNoise as i16 * 10 - 5;
+			height_noise_smoother = noise_with_octaves_vec2_01(height_map_gen, height_noise_smoother_points,3, height_seed, 1.0);
+			depth_adjust_noise = noise_with_octaves_vec2_01(height_map_gen, depth_adjust_points,  6, depth_adjust_seed, 1.0);
+			depth_adjust = depth_adjust_noise as i16 * 10 - 5;
 
-			biomeNoise = noise_with_octaves_vec2_01(height_map_gen, [x0 * 0.0005, z0 * 0.0005], 6, 23598, 1.0);
-
+			biome_noise = noise_with_octaves_vec2_01(height_map_gen, biome_noise_points, 6, biome_seed, 1.0);
+			//biome_noise = interpolate(0.5, 1.0, biome_noise);
 			// TODO: Weight biomes on interpolation by distance from edge, so that things like Mountains and oceans
 			// aren't effecting each others results very much
 			
-			oceanNoise =f64::powf(heightNoiseSmoother * 0.4, 2.0);
-			plainsNoise = f64::powf(heightNoiseSmoother * 0.3 + 0.2, 2.0) + 0.3;
-			mountainNoise = f64::powf(heightNoise * 0.6 + 0.5, 0.8);
+			ocean_noise =f64::powf(height_noise_smoother * 0.4, 2.0);
+			plains_noise = f64::powf(height_noise_smoother * 0.3 + 0.2, 2.0) + 0.3;
+			mountain_noise = f64::powf(height_noise * 0.6 + 0.5, 0.8);
 
-			oceanWeight = if biomeNoise <= 0.3 { 2.0 - f64::powf(2.0, biomeNoise) } else {f64::powf(1.0 - biomeNoise, 3.0) };
+			ocean_weight = if biome_noise <= 0.3 { 2.0 - f64::powf(4.0, biome_noise) } else {f64::powf(1.0 - biome_noise, 3.0) };
 
-			plainsWeight = f64::powf(if biomeNoise < 0.5 { biomeNoise } else { 1.0 - biomeNoise } * 2.0, 2.0) * 0.8;
-			mountainWeight = if biomeNoise >= 0.7 { 1.2 * f64::powf(biomeNoise, 2.0) } else { f64::powf(biomeNoise, 2.4) };
+			plains_weight = f64::powf(if biome_noise < 0.5 { biome_noise } else { 1.0 - biome_noise } * 2.0, 2.0) * 0.8;
+			mountain_weight = if biome_noise >= 0.7 { 1.2 * f64::powf(biome_noise, 2.0) } else { f64::powf(biome_noise, 2.4) };
 
-			interpolated = (oceanNoise * oceanWeight + plainsNoise * plainsWeight + mountainNoise * mountainWeight) / (oceanWeight + plainsWeight + mountainWeight);
+			interpolated = (ocean_noise * ocean_weight + plains_noise * plains_weight + mountain_noise * mountain_weight) / (ocean_weight + plains_weight + mountain_weight);
 			// max height based on biome?
-			height = (interpolated * 80.0) as i16 + 20;
+			height = (interpolated * height_range) as i16 + min_height;
 
-			if depthAdjust <= 2 { height += depthAdjust; }
+			if depth_adjust <= 2 { height += depth_adjust; }
 
 			for y in 0..128u16 {
 				y0 = y as f64;
 
-				let index = voxel_helpers::get_index(x, y as u16, z);
+				let index = voxel_helpers::get_index(x, y, z);
 
 				let mut voxel = index as u64;
 
 				if y <= height as u16 { 
 					voxel = voxel_helpers::set_filled(voxel);
+				} else if y < 40 {
+					voxel = voxel_helpers::set_filled(voxel);
+					voxel = voxel_helpers::set_block_type(voxel , 4);
+					voxels[index] = voxel;
+					continue;
+				} else {
+					voxels[index] = voxel;
+					continue;
 				}
 				
-				if y >= 90 && y <= 110 {
-					blobNoise = noise_with_octaves_01(height_map_gen,[x0 * 0.0125, z0 * 0.0125, y0 * 0.0125], 8, 1049, 1.0);
-					blobNoise = f64::powf(blobNoise, 1.2) + (1.0 - f64::abs((110 - y) as f64 / 20.0));
-					if blobNoise >= 0.6 { voxel = voxel_helpers::set_filled(voxel); }
-				}
+				//if y >= 90 && y <= 110 {
+				//	blob_noise = noise_with_octaves_01(height_map_gen,[x0 * 0.0125, z0 * 0.0125, y0 * 0.0125], 8, 1049, 1.0);
+				//	blob_noise = f64::powf(blob_noise, 1.2) * (1.0 - f64::abs((100 - y as i16) as f64 / 20.0));
+				//	if blob_noise >= 0.8 { voxel = voxel_helpers::set_filled(voxel); }
+				//}
 
-				blockVariantNoise = noise_with_octaves_01(height_map_gen,[x0  * 0.0125, z0 * 0.0125, y0 * 0.0125], 12, 12984, 1.0);
-				blockVariantNoise = f64::powf(blockVariantNoise, 2.0);
+				block_variant_noise = noise_with_octaves_01(height_map_gen,[x0  * 0.0125, z0 * 0.0125, y0 * 0.0125], 3, 12984, 0.7);
+				block_variant_noise = f64::powf(block_variant_noise, 2.0);
+				let block_type: u64 = if y < 10 {
+					1 // stone
+				} else if y < 50 {
+					if block_variant_noise <= 0.3 {
+						3
+					} else {
+						1
+					}
+				} else if y < 70 {
+					if block_variant_noise <= 0.3 {
+						2
+					} else if block_variant_noise <= 0.7 {
+						1
+					} else {
+						3
+					}
+				} else if y < 100 {
+					1
+				} else {
+					2
+				};
+				voxel = voxel_helpers::set_block_type(voxel, block_type);
 				voxels[index] = voxel;
+
 			}
 		}
 

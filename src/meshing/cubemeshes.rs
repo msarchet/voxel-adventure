@@ -11,7 +11,7 @@ pub struct MeshData {
 	pub vertex_count: u32,
 }
 
-pub fn get_mesh_data_container(vertext_count: usize) -> MeshData {
+pub fn get_mesh_data_container() -> MeshData {
 	return MeshData{
 		verticies: vec![],
 		normals: vec![],
@@ -22,7 +22,7 @@ pub fn get_mesh_data_container(vertext_count: usize) -> MeshData {
 }
 
 pub struct CubeMeshData {
-	pub cubes: HashMap<u8, MeshData>,
+	pub cubes: HashMap<u64, MeshData>,
 }
 
 const UP_INDEX: u8 = 0;
@@ -48,11 +48,10 @@ static H: [f32;3] = [ 1.0,  1.0, 0.0 ];
 //static Forward : [u32;4] = [3, 7, 2, 6 ];
 //static Backward : [u32;4] = [0, 1, 4, 5 ];
 
-fn get_mesh_for_face(face_key: u8) -> MeshData {
+fn get_mesh_for_face(face_key: u64) -> MeshData {
 	let mut vertex_count  = 0;
 	let mut verticies = Vec::<[f32;3]>::new();
 	let mut normals = Vec::<[f32;3]>::new();
-	let mut uvs = Vec::<[f32;2]>::new();
 	let mut indicies = Vec::<u32>::new();
 
 	if ((face_key >> UP_INDEX) & 0b1) == 1 {
@@ -70,11 +69,6 @@ fn get_mesh_for_face(face_key: u8) -> MeshData {
 		indicies.push(1 + vertex_count);
 		indicies.push(3 + vertex_count);
 
-		uvs.push([0., 0.]);
-		uvs.push([0., 1.]);
-		uvs.push([1., 0.]);
-		uvs.push([1., 1.]);
-
 		vertex_count += 4;
 	}
 	if ((face_key >> DOWN_INDEX) & 0b1) == 1 {
@@ -83,10 +77,6 @@ fn get_mesh_for_face(face_key: u8) -> MeshData {
 		verticies.push(B);
 		verticies.push(C);
 		normals.push([VECTOR3DOWN.x as f32, VECTOR3DOWN.y as f32, VECTOR3DOWN.z as f32]);
-		uvs.push([0., 0.]);
-		uvs.push([0., 1.]);
-		uvs.push([1., 0.]);
-		uvs.push([1., 1.]);
 
 		indicies.push(0 + vertex_count);
 		indicies.push(1 + vertex_count);
@@ -104,11 +94,6 @@ fn get_mesh_for_face(face_key: u8) -> MeshData {
 		verticies.push(G);
 		normals.push([VECTOR3LEFT.x as f32, VECTOR3LEFT.y as f32, VECTOR3LEFT.z as f32]);
 
-		uvs.push([0., 0.]);
-		uvs.push([0., 1.]);
-		uvs.push([1., 0.]);
-		uvs.push([1., 1.]);
-
 		indicies.push(0 + vertex_count);
 		indicies.push(1 + vertex_count);
 		indicies.push(2 + vertex_count);
@@ -124,10 +109,6 @@ fn get_mesh_for_face(face_key: u8) -> MeshData {
 		verticies.push(D);
 		verticies.push(H);
 		normals.push([VECTOR3RIGHT.x as f32, VECTOR3RIGHT.y as f32, VECTOR3RIGHT.z as f32]);
-		uvs.push([0., 0.]);
-		uvs.push([0., 1.]);
-		uvs.push([1., 0.]);
-		uvs.push([1., 1.]);
 
 		indicies.push(0 + vertex_count);
 		indicies.push(1 + vertex_count);
@@ -147,11 +128,6 @@ fn get_mesh_for_face(face_key: u8) -> MeshData {
 		
 		normals.push([VECTOR3FORWARD.x as f32, VECTOR3FORWARD.y as f32, VECTOR3FORWARD.z as f32]);
 
-		uvs.push([0., 0.]);
-		uvs.push([0., 1.]);
-		uvs.push([1., 0.]);
-		uvs.push([1., 1.]);
-
 		indicies.push(0 + vertex_count);
 		indicies.push(1 + vertex_count);
 		indicies.push(2 + vertex_count);
@@ -170,11 +146,6 @@ fn get_mesh_for_face(face_key: u8) -> MeshData {
 
 		normals.push([VECTOR3BACKWARD.x as f32, VECTOR3BACKWARD.y as f32, VECTOR3BACKWARD.z as f32]);
 
-		uvs.push([0., 0.]);
-		uvs.push([0., 1.]);
-		uvs.push([1., 0.]);
-		uvs.push([1., 1.]);
-
 		indicies.push(0 + vertex_count);
 		indicies.push(1 + vertex_count);
 		indicies.push(2 + vertex_count);
@@ -185,11 +156,10 @@ fn get_mesh_for_face(face_key: u8) -> MeshData {
 	}
 
 
-	let mut mesh_data = get_mesh_data_container(vertex_count as usize);
+	let mut mesh_data = get_mesh_data_container();
 
 	for i in 0..verticies.len() as usize {
 		mesh_data.verticies.push(verticies[i]);
-		mesh_data.uvs.push(uvs[i]);
 	}
 
 	for i in 0..normals.len() {
@@ -210,7 +180,7 @@ fn get_mesh_for_face(face_key: u8) -> MeshData {
 
 impl FromWorld for CubeMeshData {
 	fn from_world(_world: &mut World) -> Self {
-		let mut cubes = HashMap::<u8, MeshData>::new();
+		let mut cubes = HashMap::<u64, MeshData>::new();
 		for up in 0..2 {
 			for down in 0..2 {
 				for left in 0..2 {
@@ -225,8 +195,8 @@ impl FromWorld for CubeMeshData {
 								key |= forward << FORWARD_INDEX; 
 								key |= backward << BACKWARD_INDEX; 
 
-								let mesh = get_mesh_for_face(key);
-								cubes.insert(key as u8, mesh);
+								let mesh = get_mesh_for_face(key as u64);
+								cubes.insert(key as u64, mesh);
 							}
 						}
 					}
