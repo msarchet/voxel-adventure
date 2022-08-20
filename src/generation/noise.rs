@@ -2,7 +2,7 @@ use noise::*;
 
 fn normalize(value: f64) -> f64 { value + 0.5 }
 
-pub fn noise_with_octaves(gen: impl NoiseFn<[f64;3]>, point: [f64;3], octaves: u8, seed: u32, persist: f64) -> f64 {
+pub fn noise_with_octaves(gen: impl NoiseFn<[f64;3]>, point: [f64;3], octaves: u8, seed: i32, persist: f64) -> f64 {
 	let mut noise = 0.0;
 	let mut freq_sum = 0.0;
 	let mut freq;
@@ -27,7 +27,7 @@ pub fn noise_with_octaves(gen: impl NoiseFn<[f64;3]>, point: [f64;3], octaves: u
 	return noise / freq_sum;	
 }
 
-pub fn noise_with_octaves_vec2(gen: impl NoiseFn<[f64;2]>, point: [f64;2], octaves: u8, seed: u32, persist: f64) -> f64 {
+pub fn noise_with_octaves_vec2(gen: impl NoiseFn<[f64;2]>, point: [f64;2], octaves: u8, seed: i32, persist: f64) -> f64 {
 	let mut noise = 0.0;
 	let mut freq_sum = 0.0;
 	let mut freq;
@@ -51,7 +51,7 @@ pub fn noise_with_octaves_vec2(gen: impl NoiseFn<[f64;2]>, point: [f64;2], octav
 	return noise / freq_sum;	
 }
 
-pub fn noise_with_octaves_01(gen: impl NoiseFn<[f64;3]>, point: [f64;3], octaves: u8, seed: u32, persist: f64) -> f64 {
+pub fn noise_with_octaves_01(gen: impl NoiseFn<[f64;3]>, point: [f64;3], octaves: u8, seed: i32, persist: f64) -> f64 {
 	let mut noise = 0.0;
 	let mut freq_sum = 0.0;
 	let mut freq;
@@ -77,7 +77,7 @@ pub fn noise_with_octaves_01(gen: impl NoiseFn<[f64;3]>, point: [f64;3], octaves
 }
 
 
-pub fn noise_with_octaves_vec2_01(gen: impl NoiseFn<[f64;2]>, point: [f64;2], octaves: u8, seed: u32, persist: f64) -> f64 {
+pub fn noise_with_octaves_vec2_01(gen: impl NoiseFn<[f64;2]>, point: [f64;2], octaves: u8, seed: i32, persist: f64) -> f64 {
 	let mut noise = 0.0;
 	let mut freq_sum = 0.0;
 	let mut freq;

@@ -1,3 +1,4 @@
+use crate::GenerationState;
 use crate::common::types::*;
 use crate::common::voxels::voxel_helpers;
 use crate::generation::noise::*;
@@ -10,7 +11,7 @@ fn interpolate (lower: f64, upper: f64, value: f64) -> f64 {
 	lower + value * range
 }
 
-pub fn get_height_map(coords: Vector3) -> Vec<Voxel>{
+pub fn get_height_map(coords: Vector3, config: GenerationState) -> Vec<Voxel>{
 	let mut voxels: Vec<Voxel> = vec![0;16*16*128];
     let height_map_gen = OpenSimplex::new();
 	let mut y0: f64;
@@ -30,16 +31,16 @@ pub fn get_height_map(coords: Vector3) -> Vec<Voxel>{
 	let mut mountain_weight;
 	let mut interpolated;
 
-	let height_seed = 90853;
-	let depth_adjust_seed= 4958;
-	let biome_seed = 1495;
+	let height_seed = config.height_seed;
+	let depth_adjust_seed= config.depth_adjust_seed;
+	let biome_seed = config.biome_seed;
 
-	let height_noise_freq = 0.00825;
-	let height_noise_smooth_freq = 0.00085;
-	let depth_adjust_noise_freq = 0.002125;
-	let biome_noise_freq = 0.00155;
-	let height_range = 100.0;
-	let min_height = 20;
+	let height_noise_freq = config.height_noise_freq;
+	let height_noise_smooth_freq = config.height_noise_smooth_freq;
+	let depth_adjust_noise_freq = config.depth_adjust_noise_freq;
+	let biome_noise_freq = config.biome_noise_freq;
+	let height_range = config.height_range;
+	let min_height = config.min_height;
 	let offset_x = coords.x * 16.0;
 	let offset_z = coords.z * 16.0; 
 
@@ -69,7 +70,7 @@ pub fn get_height_map(coords: Vector3) -> Vec<Voxel>{
 			depth_adjust = depth_adjust_noise as i16 * 10 - 5;
 
 			biome_noise = noise_with_octaves_vec2_01(height_map_gen, biome_noise_points, 6, biome_seed, 1.0);
-			//biome_noise = interpolate(0.5, 1.0, biome_noise);
+			//biome_noise = interpolate(0.0, 0.5, biome_noise);
 			// TODO: Weight biomes on interpolation by distance from edge, so that things like Mountains and oceans
 			// aren't effecting each others results very much
 			
@@ -84,9 +85,9 @@ pub fn get_height_map(coords: Vector3) -> Vec<Voxel>{
 
 			interpolated = (ocean_noise * ocean_weight + plains_noise * plains_weight + mountain_noise * mountain_weight) / (ocean_weight + plains_weight + mountain_weight);
 			// max height based on biome?
-			height = (interpolated * height_range) as i16 + min_height;
+			height = (interpolated * height_range) as i32 + min_height;
 
-			if depth_adjust <= 2 { height += depth_adjust; }
+			if depth_adjust <= 2 { height += depth_adjust as i32; }
 
 			for y in 0..128u16 {
 				y0 = y as f64;

@@ -4,6 +4,8 @@ use bevy::prelude::*;
 use bevy::render::camera::Projection;
 use bevy::render::mesh;
 use bevy::utils::HashMap;
+use bevy_egui::{egui, EguiContext, EguiPlugin};
+
 use generation::chunks;
 use meshing::cubemeshes::CubeMeshData;
 use crate::common::types::*;
@@ -12,6 +14,7 @@ use crate::meshing::chunk::*;
 pub mod common;
 pub mod meshing;
 pub mod generation;
+pub mod systems;
 
 
 #[derive(Component)]
@@ -21,13 +24,14 @@ struct Moveable;
 struct MainCamera;
 
 #[derive(Component)]
+struct Render;
+
+#[derive(Component)]
 struct Generate;
 
 #[derive(Component)]
 struct GenerateFaces;
 
-#[derive(Component)]
-struct Render;
 
 #[derive(Component)]
 pub struct Chunk {
@@ -44,9 +48,45 @@ struct State {
     chunks: HashMap<Vector3Int, Entity>,
 }
 
+
+#[derive(Copy, Clone)]
+pub struct GenerationState {
+	height_seed: i32, 
+	depth_adjust_seed: i32,
+	biome_seed: i32,
+	height_noise_freq: f64,
+	height_noise_smooth_freq: f64,
+	depth_adjust_noise_freq: f64,
+	biome_noise_freq: f64,
+	height_range: f64,
+	min_height: i32,
+}
+
+impl Default for GenerationState  {
+    fn default() -> Self {
+        Self { 
+            height_seed: 90853,
+            depth_adjust_seed: 4958,
+            biome_seed: 08320,
+            height_noise_freq: 0.00825,
+            height_noise_smooth_freq: 0.000825,
+            depth_adjust_noise_freq: 0.002125,
+            biome_noise_freq: 0.000085,
+            height_range: 100.0,
+            min_height: 20
+        }
+    }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, StageLabel)]
+enum CustomStages{
+    Cleanup,
+}
+
 fn main() {
     App::new()
     	.add_plugins(DefaultPlugins)
+    	.add_plugin(EguiPlugin)
         .add_startup_system(setup)
         .add_system(queue_new_chunks)
         .add_system(generator.after(queue_new_chunks))
@@ -54,7 +94,12 @@ fn main() {
         .add_system(render_chunk.after(generate_full_edge_meshes))
         .add_system(movement.after(generator))
         .add_system(pan_orbit_camera.after(movement))
+        .add_system(reload_chunk.after(pan_orbit_camera))
+        .add_system(ui_main)
+        .add_stage_after(CoreStage::Last, CustomStages::Cleanup, SystemStage::parallel())
+        .add_system_to_stage(CustomStages::Cleanup, manage_loaded_chunk)
         .init_resource::<CubeMeshData>()
+        .init_resource::<GenerationState>()
         .init_resource::<VoxelFaceEdges>()
         .insert_resource(MaterialCache { chunk_material: Option::None })
         .insert_resource(State {
@@ -84,8 +129,8 @@ fn setup(
     material_cache.chunk_material = Some(chunk_material);
 
     let center = Vector3Int { x: 0, y: 0, z: 0};
-    for x in -40..40 {
-        for z in -40..40 {
+    for x in -5..5 {
+        for z in -5..5 {
             state.chunks_load.push(Vector3Int { x: x, y: 0, z: z} + center);
         }
     }
@@ -104,9 +149,9 @@ fn setup(
     });
 
     commands.spawn_bundle(Camera3dBundle {
-        transform: Transform::from_xyz(-160., 120.0, -160.).looking_at(Vec3::ZERO, Vec3::Y),
+        transform: Transform::from_xyz(-5.0, 120.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
-    }).insert_bundle((PanOrbitCamera { ..default() }, Moveable));
+    }).insert_bundle((PanOrbitCamera { ..default() }, Moveable, MainCamera));
 }
 
 fn movement(
@@ -157,6 +202,31 @@ fn movement(
     }
 }
 
+fn reload_chunk(
+    mut commands: Commands,
+    mut state: ResMut<State>,
+    input: Res<Input<KeyCode>>,
+    query: Query<Entity, With<Chunk>>) {
+    
+    if !input.pressed(KeyCode::Home) { return }
+
+    query.into_iter().for_each(|e| {
+        commands.entity(e).despawn_recursive();
+    });
+
+    state.chunks.clear();
+    state.chunks_load.clear();
+
+    let center = Vector3Int { x: 0, y: 0, z: 0};
+    for x in -20..20 {
+        for z in -20..20 {
+            state.chunks_load.push(Vector3Int { x: x, y: 0, z: z} + center);
+        }
+    }
+
+}
+
+
 fn queue_new_chunks(
     mut state: ResMut<State>,
     mut commands: Commands,
@@ -175,16 +245,65 @@ fn queue_new_chunks(
     }
 }
 
+fn manage_loaded_chunk(
+    mut state: ResMut<State>,
+    mut commands: Commands,
+    camera_query: Query<(Entity, &Transform), With<MainCamera>>,
+    query: Query<(Entity, &Chunk)>
+) {
+    let mut camera_coords: Option::<Vector3Int> = None;
+
+    for (e, transform) in camera_query.iter() {
+        camera_coords = Some(Vector3Int {x: transform.translation.x as i64 / 16, y: transform.translation.y as i64, z: transform.translation.z as i64 / 16 });
+        //println!("{},{},{}",camera_coords.x, camera_coords.y, camera_coords.z);
+    }
+
+    // do some stuff to despawn old chunks (or at least de_render)
+    // queue any new chunks for spawning
+    // update any chunks with appropriate flags based on location
+    match camera_coords {
+        Some(camera_coords) => {
+            let max = camera_coords + Vector3Int {x: 20, y: 0, z: 20};
+            let min = camera_coords - Vector3Int {x: 20, y: 0, z: 20};
+            // set some chunks to be loaded
+            for x in min.x..max.x {
+                for z in min.z..max.z {
+                    let coords = Vector3Int {x:x, y: 0, z: z};
+                    if !state.chunks.contains_key(&coords)
+                        && !state.chunks_load.contains(&coords) {
+                            state.chunks_load.push(coords);
+                    }
+                }
+            }
+
+            for (e, chunk) in &query {
+                if chunk.coords.x < min.x
+                    || chunk.coords.z < min.z
+                    || chunk.coords.x > max.x
+                    || chunk.coords.z > max.z {
+
+                        match state.chunks.remove(&chunk.coords) {
+                            Some (coords) => println!("Removed"),
+                            None => panic!("didnt remove,{},{}", chunk.coords.x, chunk.coords.z)
+                        }
+
+                        commands.entity(e).despawn_recursive();
+                    }
+            }
+        },
+        None => return
+    }
+
+}
+
 fn generator(
     mut state: ResMut<State>,
+    config: Res<GenerationState>,
     mut commands: Commands,
     mut query: Query<(Entity, &mut Chunk), With<Generate>>,
 ) {
-    //noise_gen = noise_gen.set_frequency(0.00825);
-    //noise_gen = noise_gen.set_octaves(8);
-
     for (entity, mut chunk) in query.iter_mut() {
-        chunk.data.voxels = chunks::get_height_map(Vector3{x: chunk.coords.x as f64, y: chunk.coords.y as f64, z: chunk.coords.z as f64});
+        chunk.data.voxels = chunks::get_height_map(Vector3{x: chunk.coords.x as f64, y: chunk.coords.y as f64, z: chunk.coords.z as f64}, config.clone());
 
         run_first_pass_meshing(&mut chunk.data.voxels);
         state.chunks.insert_unique_unchecked(chunk.coords, entity.clone());
@@ -363,6 +482,29 @@ fn spawn_new_chunk(commands: &mut Commands, state: &mut State, coords: Vector3In
     )).id();
 
     state.chunks.insert(coords, id);
+}
+
+fn ui_main(
+    mut egui_context: ResMut<EguiContext>,
+    mut config: ResMut<GenerationState>,
+    mut biome_noise_freq: Local<String>,
+) {
+    egui::panel::SidePanel::left("config_panel").show(egui_context.ctx_mut(), |ui| {
+        if biome_noise_freq.len() == 0 {
+            *biome_noise_freq = config.biome_noise_freq.to_string();
+        }
+        let response = ui.add(egui::TextEdit::singleline(&mut *biome_noise_freq));
+        if response.changed() {
+           // *biome_noise_freq
+        }
+        if response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
+            config.biome_noise_freq = match biome_noise_freq.parse::<f64>() {
+                Ok(val) => val,
+                Err(_) => config.biome_noise_freq,
+            }
+        }
+    });
+        // …
 }
 
 

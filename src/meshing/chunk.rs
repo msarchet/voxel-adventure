@@ -149,9 +149,6 @@ pub fn run_first_pass_meshing(voxels: &mut Vec<Voxel>) {
 				target_voxel = voxels[target_index];
 				if voxel_helpers::should_create_face(voxel, target_voxel) { key |= 0b1; }
             }
-			else {
-				//key |= 0b1;
-			}
 
             // don't mesh the bottom face of the world
             if y > 1
@@ -160,36 +157,27 @@ pub fn run_first_pass_meshing(voxels: &mut Vec<Voxel>) {
 				target_voxel = voxels[target_index];
 				if voxel_helpers::should_create_face(voxel, target_voxel) { key |= 0b10; }
             }
-			else {
-				//key |= 0b10;
-			}
             if z < 15
             {
 				target_index = voxel_helpers::get_index(x, y, z + 1);
 				target_voxel = voxels[target_index];
 				if voxel_helpers::should_create_face(voxel, target_voxel) { key |= 0b100; }
  
-            } else {
-				//key |= 0b100;
-			}
-            if z > 0
+            }            
+
+			if z > 0
             {
                 target_index = voxel_helpers::get_index(x, y, z - 1);
 				target_voxel = voxels[target_index];
 				if voxel_helpers::should_create_face(voxel, target_voxel) { key |= 0b1000; }
             }
-			else {
-				//key |= 0b1000; 
-			}
+
             if x < 15
             {
                 target_index = voxel_helpers::get_index(x + 1, y, z);
 				target_voxel = voxels[target_index];
 				if voxel_helpers::should_create_face(voxel, target_voxel) { key |= 0b10000; }
             }
-			else {
-				//key |= 0b10000;
-			}
 
             if x > 0
             {
@@ -197,9 +185,6 @@ pub fn run_first_pass_meshing(voxels: &mut Vec<Voxel>) {
 				target_voxel = voxels[target_index];
 				if voxel_helpers::should_create_face(voxel, target_voxel) { key |= 0b100000; }
             }
-			else {
-				//key |= 0b100000;
-			}
 
             voxels[index] = voxel_helpers::set_mesh_data(voxel, key & 0xFF);
 	}
