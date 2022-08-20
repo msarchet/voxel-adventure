@@ -45,9 +45,9 @@ impl Default for GenerationState  {
             depth_adjust_seed: 4958,
             biome_seed: 08320,
             height_noise_freq: 0.00825,
-            height_noise_smooth_freq: 0.000825,
-            depth_adjust_noise_freq: 0.002125,
-            biome_noise_freq: 0.000085,
+            height_noise_smooth_freq: 0.00825,
+            depth_adjust_noise_freq: 0.02125,
+            biome_noise_freq: 0.00085,
             height_range: 100.0,
             min_height: 20
         }

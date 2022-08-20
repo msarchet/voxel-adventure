@@ -1,3 +1,5 @@
+use std::string;
+
 use bevy::input::mouse::MouseMotion;
 use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
@@ -149,24 +151,101 @@ fn movement(
 }
 
 
+#[derive(Default)]
+struct GenerateStateEdit {
+	pub height_seed: String, 
+	pub height_noise_freq: String,
+	pub height_noise_smooth_freq: String,
+	pub depth_adjust_seed: String,
+	pub depth_adjust_noise_freq: String,
+	pub biome_seed: String,
+	pub biome_noise_freq: String,
+	pub height_range: String,
+	pub min_height: String,
+}
+
 fn ui_main(
     mut egui_context: ResMut<EguiContext>,
     mut config: ResMut<GenerationState>,
-    mut biome_noise_freq: Local<String>,
+    mut edit_config: Local<GenerateStateEdit>,
+    mut is_init: Local<bool>,
 ) {
     egui::panel::SidePanel::left("config_panel").show(egui_context.ctx_mut(), |ui| {
-        if biome_noise_freq.len() == 0 {
-            *biome_noise_freq = config.biome_noise_freq.to_string();
+        if  !*is_init {
+            *is_init = true;
+            let existing = *config;
+            edit_config.height_seed = existing.height_seed.to_string();
+            edit_config.height_noise_freq = existing.height_noise_freq.to_string();
+            edit_config.height_noise_smooth_freq = existing.height_noise_smooth_freq.to_string();
+            
+            edit_config.depth_adjust_seed = existing.depth_adjust_seed.to_string();
+            edit_config.depth_adjust_noise_freq = existing.depth_adjust_noise_freq.to_string();
+
+            edit_config.biome_seed= existing.biome_seed.to_string();
+            edit_config.biome_noise_freq = existing.biome_noise_freq.to_string();
+
+            edit_config.height_range = existing.height_range.to_string();
+            edit_config.min_height = existing.min_height.to_string();
         }
-        let response = ui.add(egui::TextEdit::singleline(&mut *biome_noise_freq));
-        if response.changed() {
-           // *biome_noise_freq
-        }
-        if response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
-            config.biome_noise_freq = match biome_noise_freq.parse::<f64>() {
+
+        ui.add(egui::Label::new("Height Seed"));
+        ui.add(egui::TextEdit::singleline(&mut edit_config.height_seed));
+        ui.add(egui::Label::new("Height Noise Freq"));
+        ui.add(egui::TextEdit::singleline(&mut edit_config.height_noise_freq));
+        ui.add(egui::Label::new("Height Noise Smooth Freq"));
+        ui.add(egui::TextEdit::singleline(&mut edit_config.height_noise_smooth_freq));
+        ui.add(egui::Label::new("Depth Adjust Seed"));
+        ui.add(egui::TextEdit::singleline(&mut edit_config.depth_adjust_seed));
+        ui.add(egui::Label::new("Depth Adjust Noise Freq"));
+        ui.add(egui::TextEdit::singleline(&mut edit_config.depth_adjust_noise_freq));
+        ui.add(egui::Label::new("Biome Seed"));
+        ui.add(egui::TextEdit::singleline(&mut edit_config.biome_seed));
+        ui.add(egui::Label::new("Biome Noise Freq"));
+        ui.add(egui::TextEdit::singleline(&mut edit_config.biome_noise_freq));
+        ui.add(egui::Label::new("Height Range"));
+        ui.add(egui::TextEdit::singleline(&mut edit_config.height_range));
+        ui.add(egui::Label::new("Min Height"));
+        ui.add(egui::TextEdit::singleline(&mut edit_config.min_height));
+        
+        let update = ui.add(egui::Button::new("Update Config"));
+
+        if update.clicked() {
+            config.height_seed = match edit_config.height_seed.parse::<i32>() {
+                Ok(val) => val,
+                Err(_) => config.height_seed,
+            };
+            config.height_noise_freq = match edit_config.height_noise_freq.parse::<f64>() {
+                Ok(val) => val,
+                Err(_) => config.height_noise_freq,
+            };
+            config.height_noise_smooth_freq = match edit_config.height_noise_smooth_freq.parse::<f64>() {
+                Ok(val) => val,
+                Err(_) => config.height_noise_smooth_freq,
+            };
+            config.depth_adjust_seed = match edit_config.depth_adjust_seed.parse::<i32>() {
+                Ok(val) => val,
+                Err(_) => config.depth_adjust_seed,
+            };
+            config.depth_adjust_noise_freq = match edit_config.depth_adjust_noise_freq.parse::<f64>() {
+                Ok(val) => val,
+                Err(_) => config.depth_adjust_noise_freq,
+            };
+            config.biome_seed = match edit_config.biome_seed.parse::<i32>() {
+                Ok(val) => val,
+                Err(_) => config.biome_seed,
+            };
+            config.biome_noise_freq = match edit_config.biome_noise_freq.parse::<f64>() {
                 Ok(val) => val,
                 Err(_) => config.biome_noise_freq,
-            }
+            };
+            config.height_range = match edit_config.height_range.parse::<f64>() {
+                Ok(val) => val,
+                Err(_) => config.height_range,
+            };
+            config.min_height = match edit_config.min_height.parse::<i32>() {
+                Ok(val) => val,
+                Err(_) => config.min_height,
+            };
         }
     });
         // …

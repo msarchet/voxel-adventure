@@ -69,18 +69,18 @@ pub fn get_height_map(coords: Vector3, config: GenerationState) -> Vec<Voxel>{
 			depth_adjust_noise = noise_with_octaves_vec2_01(height_map_gen, depth_adjust_points,  6, depth_adjust_seed, 1.0);
 			depth_adjust = depth_adjust_noise as i16 * 10 - 5;
 
-			biome_noise = noise_with_octaves_vec2_01(height_map_gen, biome_noise_points, 6, biome_seed, 1.0);
+			biome_noise = noise_with_octaves_vec2_01(height_map_gen, biome_noise_points, 9, biome_seed, 1.0);
 			//biome_noise = interpolate(0.0, 0.5, biome_noise);
 			// TODO: Weight biomes on interpolation by distance from edge, so that things like Mountains and oceans
 			// aren't effecting each others results very much
 			
-			ocean_noise =f64::powf(height_noise_smoother * 0.4, 2.0);
+			ocean_noise =f64::powf(height_noise_smoother * 0.35, 2.0);
 			plains_noise = f64::powf(height_noise_smoother * 0.3 + 0.2, 2.0) + 0.3;
 			mountain_noise = f64::powf(height_noise * 0.6 + 0.5, 0.8);
 
-			ocean_weight = if biome_noise <= 0.3 { 2.0 - f64::powf(4.0, biome_noise) } else {f64::powf(1.0 - biome_noise, 3.0) };
+			ocean_weight = if biome_noise <= 0.3 { 2.5 - f64::powf(4.0, biome_noise) } else {f64::powf(1.2 - biome_noise, 3.0) };
 
-			plains_weight = f64::powf(if biome_noise < 0.5 { biome_noise } else { 1.0 - biome_noise } * 2.0, 2.0) * 0.8;
+			plains_weight = f64::powf(if biome_noise < 0.5 { biome_noise } else { 1.2 - biome_noise } * 2.0, 2.0) * 0.8;
 			mountain_weight = if biome_noise >= 0.7 { 1.2 * f64::powf(biome_noise, 2.0) } else { f64::powf(biome_noise, 2.4) };
 
 			interpolated = (ocean_noise * ocean_weight + plains_noise * plains_weight + mountain_noise * mountain_weight) / (ocean_weight + plains_weight + mountain_weight);
