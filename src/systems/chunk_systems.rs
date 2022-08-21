@@ -6,7 +6,7 @@ use crate::{common::types::*, meshing::{chunk::{run_first_pass_meshing, VoxelFac
 pub struct GenerationCenter;
 
 #[derive(Component)]
-pub struct Render;
+pub struct NeedsRender;
 
 #[derive(Component)]
 pub struct Generate;
@@ -16,14 +16,14 @@ pub struct GenerateFaces;
 
 #[derive(Component)]
 pub struct Chunk {
-    pub data: ChunkData,
     pub coords: Vector3Int,
+    pub render: bool,
 }
 
 #[derive(Default)]
 pub struct ChunkState {
     pub chunks_load: Vec<Vector3Int>,
-    pub chunks: HashMap<Vector3Int, Entity>,
+    pub chunks: HashMap<Vector3Int, ChunkData>,
     pub center: Vector3Int,
 }
 
@@ -31,12 +31,16 @@ pub struct ChunkState {
 #[derive(Copy, Clone)]
 pub struct ConfigurationState {
 	pub height_seed: i32, 
+    pub height_noise_octaves: u8,
 	pub depth_adjust_seed: i32,
-	pub biome_seed: i32,
+    pub depth_adjust_noise_octaves: u8,
 	pub height_noise_freq: f64,
 	pub height_noise_smooth_freq: f64,
+    pub height_noise_smooth_octaves: u8,
 	pub depth_adjust_noise_freq: f64,
+	pub biome_seed: i32,
 	pub biome_noise_freq: f64,
+    pub biome_noise_octaves: u8,
 	pub height_range: f64,
 	pub min_height: i32,
     pub loading_distance: u8,
@@ -47,14 +51,18 @@ impl Default for ConfigurationState  {
         Self { 
             height_seed: 90853,
             depth_adjust_seed: 4958,
-            biome_seed: 08320,
             height_noise_freq: 0.00825,
             height_noise_smooth_freq: 0.00825,
             depth_adjust_noise_freq: 0.02125,
+            biome_seed: 08320,
             biome_noise_freq: 0.00085,
             height_range: 100.0,
             min_height: 20,
             loading_distance: 16,
+            height_noise_octaves: 8,
+            depth_adjust_noise_octaves: 6,
+            height_noise_smooth_octaves: 3,
+            biome_noise_octaves: 9,
         }
     }
 }
@@ -99,7 +107,7 @@ pub fn queue_new_chunks(
         let next_coord = state.chunks_load.pop();
         match next_coord {
             Some(v) => {
-                spawn_new_chunk(&mut commands, &mut state, v);
+                spawn_new_chunk(&mut commands, v);
             },
             None => break,
         }
@@ -152,6 +160,7 @@ pub fn manage_loaded_chunk(
                     || chunk.coords.z > unload_max.z {
 
 
+                        state.chunks.remove(&chunk.coords);
                         commands.entity(e).despawn_recursive();
                     }
             }
@@ -168,126 +177,88 @@ pub fn generator(
     mut query: Query<(Entity, &mut Chunk), With<Generate>>,
 ) {
     for (entity, mut chunk) in query.iter_mut() {
-        chunk.data.voxels = chunks::get_height_map(Vector3{x: chunk.coords.x as f64, y: chunk.coords.y as f64, z: chunk.coords.z as f64}, config.clone());
+        let mut new_chunk_data = ChunkData { 
+            voxels: chunks::get_height_map(Vector3{x: chunk.coords.x as f64, y: chunk.coords.y as f64, z: chunk.coords.z as f64}, config.clone()),
+            entity: entity.clone(),
+            has_generated_structures: false,
+        };
 
-        run_first_pass_meshing(&mut chunk.data.voxels);
-        state.chunks.insert_unique_unchecked(chunk.coords, entity.clone());
+        run_first_pass_meshing(&mut new_chunk_data.voxels);
+        state.chunks.insert_unique_unchecked(chunk.coords, new_chunk_data);
         commands.entity(entity).remove::<Generate>();
     }
 }
 
 pub fn generate_full_edge_meshes (
     mut commands: Commands,
-    mut set: ParamSet<(Query<(Entity, &Chunk), With<GenerateFaces>>,
-                        Query<(Entity, &Chunk), Without<Generate>>,
-                        Query<(Entity, &mut Chunk), With<GenerateFaces>>)>,
+    mut query : Query<(Entity, &Chunk), (With<GenerateFaces>, Without<Generate>)>,
     face_edges: Res<VoxelFaceEdges>,
-    state: Res<ChunkState>
+    mut state: ResMut<ChunkState>
 ) {
-    let mut chunk_neighbors = Vec::<(Entity, Entity, Entity, Entity, Entity)>::new();
-    let mut completed_chunks = HashMap::<Entity, Vec::<Voxel>>::new();
-    for (e, chunk) in &set.p0() {
+    for (e, chunk) in query.iter_mut() {
         let left = chunk.coords + Vector3Int{ x:0, y: 0, z:1 };
         let right = chunk.coords + Vector3Int{ x: 0, y: 0, z: -1};
         let forward = chunk.coords + Vector3Int { x: 1, y: 0, z: 0};
         let backward = chunk.coords + Vector3Int { x: -1, y: 0, z: 0};
 
-        let left_chunk_id = state.chunks.get(&left);
-        let right_chunk_id = state.chunks.get(&right);
-        let forward_chunk_id = state.chunks.get(&forward);
-        let backward_chunk_id = state.chunks.get(&backward);
+        let mut_state = &mut state;
+        if let Some([
+            left_chunk_data,
+            right_chunk_data,
+            forward_chunk_data,
+            backward_chunk_data,
+            chunk_data
+        ]) = mut_state.chunks.get_many_mut([&left, &right, &forward, &backward, &chunk.coords]) {
+            let mut copied_voxels = chunk_data.voxels.clone();
+            update_edge_meshes(&mut copied_voxels,
+                &left_chunk_data.voxels,
+                &face_edges.edges[0],
+                LEFT_FACE,
+                NOT_LEFT_FACE);
 
-        if left_chunk_id.is_none() 
-            || right_chunk_id.is_none()
-            || forward_chunk_id.is_none()
-            || backward_chunk_id.is_none() {
-            continue
-        }
+            update_edge_meshes(&mut copied_voxels,
+                &right_chunk_data.voxels,
+                &face_edges.edges[1],
+                RIGHT_FACE,
+                NOT_RIGHT_FACE);
 
-        if left_chunk_id.is_some() 
-            && right_chunk_id.is_some()
-            && forward_chunk_id.is_some()
-            && backward_chunk_id.is_some() {
-                chunk_neighbors.push((e,
-                    commands.entity(left_chunk_id.unwrap().clone()).id(),
-                    commands.entity(right_chunk_id.unwrap().clone()).id(),
-                    commands.entity(forward_chunk_id.unwrap().clone()).id(),
-                    commands.entity(backward_chunk_id.unwrap().clone()).id(),
-                ));
-        }
-    }
-    
-    for (chunk_id, left_chunk_id, right_chunk_id, forward_chunk_id, backward_chunk_id) in chunk_neighbors {
-        let q = set.p1();
-        let neighbors_query = q.get_many([
-            chunk_id,
-            left_chunk_id,
-            right_chunk_id,
-            forward_chunk_id,
-            backward_chunk_id]);
+            update_edge_meshes(&mut copied_voxels,
+                &forward_chunk_data.voxels,
+                &face_edges.edges[2],
+                FORWARD_FACE,
+                NOT_FORWARD_FACE);
 
-        let [
-            (_, chunk),
-            (_, left_chunk_data),
-            (_, right_chunk_data),
-            (_, forward_chunk_data),
-            (_, backward_chunk_data)] = match neighbors_query {
-                Ok (q) => q,
-                Err(_) => continue,
-        };
+            update_edge_meshes(&mut copied_voxels,
+                &backward_chunk_data.voxels,
+                &face_edges.edges[3],
+                BACKWARD_FACE,
+                NOT_BACKWARD_FACE);
 
-        let mut copied_voxels = chunk.data.voxels.clone();
+            chunk_data.voxels.clone_from(&copied_voxels);
 
-        update_edge_meshes(&mut copied_voxels,
-            &left_chunk_data.data.voxels,
-            &face_edges.edges[0],
-            LEFT_FACE,
-            NOT_LEFT_FACE);
+            commands.entity(e).remove::<GenerateFaces>();
+            commands.entity(e).insert(NeedsRender);
 
-        update_edge_meshes(&mut copied_voxels,
-            &right_chunk_data.data.voxels,
-            &face_edges.edges[1],
-            RIGHT_FACE,
-            NOT_RIGHT_FACE);
-
-        update_edge_meshes(&mut copied_voxels,
-            &forward_chunk_data.data.voxels,
-            &face_edges.edges[2],
-            FORWARD_FACE,
-            NOT_FORWARD_FACE);
-
-        update_edge_meshes(&mut copied_voxels,
-            &backward_chunk_data.data.voxels,
-            &face_edges.edges[3],
-            BACKWARD_FACE,
-            NOT_BACKWARD_FACE);
-
-        completed_chunks.insert(chunk_id.clone(), copied_voxels);
-    }
-
-    for (e, mut update_chunk) in set.p2().iter_mut() {
-        match completed_chunks.get(&e) {
-            Some (voxels) => {
-                update_chunk.data.voxels = voxels.to_vec();
-                //println!("chunk {},{},{}", update_chunk.coords.x, update_chunk.coords.y, update_chunk.coords.z);
-                commands.entity(e).remove::<GenerateFaces>();
-                commands.entity(e).insert(Render);
-            },
-            None => continue
-        }
+        } 
     }
 }
 
 pub fn render_chunk(
     material_cache: Res<MaterialCache>,
     cube_meshes: Res<CubeMeshData>,
+    state: Res<ChunkState>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    query: Query<(Entity, &Chunk), (With<Render>, Without<Generate>, Without<GenerateFaces>)>,
+    query: Query<(Entity, &Chunk), (With<NeedsRender>, Without<Generate>, Without<GenerateFaces>)>,
 ) {
     for (entity, chunk) in query.iter() {
 
-        let mesh_data = get_mesh_data(&chunk.data, &cube_meshes);
+        let chunk_data = match state.chunks.get(&chunk.coords) {
+            Some (data) => data,
+            None => continue,
+        };
+
+        let mesh_data = get_mesh_data(&chunk_data, &cube_meshes);
         let indices = mesh::Indices::U32(mesh_data.indicies);
 
         let mut chunk_mesh = mesh::Mesh::new(mesh::PrimitiveTopology::TriangleList);
@@ -315,7 +286,7 @@ pub fn render_chunk(
             ..default()
         };
 
-        commands.entity(entity).remove::<Render>();
+        commands.entity(entity).remove::<NeedsRender>();
         commands.entity(entity).insert_bundle(sb);
         commands.entity(entity).push_children(&[mesh_id]);
     }
@@ -331,21 +302,16 @@ fn copy_chunk_side(voxels: &Vec<Voxel>, out_voxels: &mut [Voxel;16*128], indicie
     };
 }
 
-pub fn spawn_new_chunk(commands: &mut Commands, state: &mut ChunkState, coords: Vector3Int) {
-    let chunk: Chunk = Chunk {
-        coords: coords,
-        data: ChunkData {
-            voxels: vec![],
-        }
-    };
-
-    let id = commands.spawn_bundle((
-        chunk, 
+pub fn spawn_new_chunk(commands: &mut Commands, coords: Vector3Int) {
+    commands.spawn_bundle((
+        Chunk {
+            coords: coords,
+            render: false,
+        },
         Transform::from_xyz((coords.x * 16) as f32, (coords.y * 128) as f32, (coords.z * 16) as f32),
         Generate,
         GenerateFaces,
-    )).id();
+    ));
 
-    state.chunks.insert(coords, id);
 }
 

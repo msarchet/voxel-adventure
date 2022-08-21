@@ -41,6 +41,12 @@ pub fn get_height_map(coords: Vector3, config: ConfigurationState) -> Vec<Voxel>
 	let biome_noise_freq = config.biome_noise_freq;
 	let height_range = config.height_range;
 	let min_height = config.min_height;
+	
+	let height_noise_octaves = config.height_noise_octaves;
+	let height_noise_smooth_octaves = config.height_noise_smooth_octaves;
+	let biome_noise_octaves = config.biome_noise_octaves;
+	let depth_adjust_noise_octaves = config.depth_adjust_noise_octaves;
+
 	let offset_x = coords.x * 16.0;
 	let offset_z = coords.z * 16.0; 
 
@@ -62,14 +68,14 @@ pub fn get_height_map(coords: Vector3, config: ConfigurationState) -> Vec<Voxel>
 			depth_adjust_points[1] = z0 * depth_adjust_noise_freq;
 			biome_noise_points[1] = z0 * biome_noise_freq;
 
-			height_noise = noise_with_octaves_vec2_01(height_map_gen,height_noise_points, 8, height_seed, 1.0);
+			height_noise = noise_with_octaves_vec2_01(height_map_gen,height_noise_points, height_noise_octaves, height_seed, 1.0);
 			height_noise = f64::powf(height_noise, 1.2);
 
-			height_noise_smoother = noise_with_octaves_vec2_01(height_map_gen, height_noise_smoother_points,3, height_seed, 1.0);
-			depth_adjust_noise = noise_with_octaves_vec2_01(height_map_gen, depth_adjust_points,  6, depth_adjust_seed, 1.0);
+			height_noise_smoother = noise_with_octaves_vec2_01(height_map_gen, height_noise_smoother_points, height_noise_smooth_octaves, height_seed, 1.0);
+			depth_adjust_noise = noise_with_octaves_vec2_01(height_map_gen, depth_adjust_points, depth_adjust_noise_octaves , depth_adjust_seed, 1.0);
 			depth_adjust = depth_adjust_noise as i16 * 10 - 5;
 
-			biome_noise = noise_with_octaves_vec2_01(height_map_gen, biome_noise_points, 9, biome_seed, 1.0);
+			biome_noise = noise_with_octaves_vec2_01(height_map_gen, biome_noise_points, biome_noise_octaves, biome_seed, 1.0);
 			//biome_noise = interpolate(0.0, 0.5, biome_noise);
 			// TODO: Weight biomes on interpolation by distance from edge, so that things like Mountains and oceans
 			// aren't effecting each others results very much

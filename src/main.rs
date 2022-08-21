@@ -76,9 +76,10 @@ fn setup(
 
     let center = state.center;
 
-    for x in 0-config.loading_distance..config.loading_distance {
-        for z in 0-config.loading_distance..config.loading_distance {
-            state.chunks_load.push(Vector3Int { x: x as i64, y: 0, z: z as i64} + center);
+    let loading_distance = config.loading_distance as i64;
+    for x in 0-loading_distance..loading_distance {
+        for z in 0-loading_distance..loading_distance {
+            state.chunks_load.push(Vector3Int { x: x, y: 0, z: z } + center);
         }
     }
 
@@ -154,14 +155,19 @@ fn movement(
 #[derive(Default)]
 struct GenerateStateEdit {
 	pub height_seed: String, 
+    pub height_noise_ocatves: String,
 	pub height_noise_freq: String,
 	pub height_noise_smooth_freq: String,
+    pub height_noise_smooth_ocatves: String,
 	pub depth_adjust_seed: String,
 	pub depth_adjust_noise_freq: String,
+    pub depth_adjust_noise_octaves: String,
 	pub biome_seed: String,
 	pub biome_noise_freq: String,
+    pub biome_noise_octaves: String,
 	pub height_range: String,
 	pub min_height: String,
+    pub loading_distance: String,
 }
 
 fn ui_main(
@@ -190,17 +196,23 @@ fn ui_main(
             *is_init = true;
             let existing = *config;
             edit_config.height_seed = existing.height_seed.to_string();
+            edit_config.height_noise_ocatves= existing.height_noise_octaves.to_string();
             edit_config.height_noise_freq = existing.height_noise_freq.to_string();
             edit_config.height_noise_smooth_freq = existing.height_noise_smooth_freq.to_string();
+            edit_config.height_noise_smooth_ocatves= existing.height_noise_smooth_octaves.to_string();
             
             edit_config.depth_adjust_seed = existing.depth_adjust_seed.to_string();
             edit_config.depth_adjust_noise_freq = existing.depth_adjust_noise_freq.to_string();
+            edit_config.depth_adjust_noise_octaves= existing.depth_adjust_noise_octaves.to_string();
 
             edit_config.biome_seed= existing.biome_seed.to_string();
             edit_config.biome_noise_freq = existing.biome_noise_freq.to_string();
+            edit_config.biome_noise_octaves= existing.biome_noise_octaves.to_string();
 
             edit_config.height_range = existing.height_range.to_string();
             edit_config.min_height = existing.min_height.to_string();
+
+            edit_config.loading_distance = existing.loading_distance.to_string();
         }
 
         ui.set_max_width(300.0);
@@ -208,20 +220,30 @@ fn ui_main(
         ui.add(egui::TextEdit::singleline(&mut edit_config.height_seed));
         ui.add(egui::Label::new("Height Noise Freq"));
         ui.add(egui::TextEdit::singleline(&mut edit_config.height_noise_freq));
+        ui.add(egui::Label::new("Height Noise Octaves"));
+        ui.add(egui::TextEdit::singleline(&mut edit_config.height_noise_ocatves));
         ui.add(egui::Label::new("Height Noise Smooth Freq"));
         ui.add(egui::TextEdit::singleline(&mut edit_config.height_noise_smooth_freq));
+        ui.add(egui::Label::new("Height Noise Smooth Octaves"));
+        ui.add(egui::TextEdit::singleline(&mut edit_config.height_noise_smooth_ocatves));
         ui.add(egui::Label::new("Depth Adjust Seed"));
         ui.add(egui::TextEdit::singleline(&mut edit_config.depth_adjust_seed));
         ui.add(egui::Label::new("Depth Adjust Noise Freq"));
         ui.add(egui::TextEdit::singleline(&mut edit_config.depth_adjust_noise_freq));
+        ui.add(egui::Label::new("Depth Adjust Octaves"));
+        ui.add(egui::TextEdit::singleline(&mut edit_config.depth_adjust_noise_octaves));
         ui.add(egui::Label::new("Biome Seed"));
         ui.add(egui::TextEdit::singleline(&mut edit_config.biome_seed));
         ui.add(egui::Label::new("Biome Noise Freq"));
         ui.add(egui::TextEdit::singleline(&mut edit_config.biome_noise_freq));
+        ui.add(egui::Label::new("Biome Noise Octaves"));
+        ui.add(egui::TextEdit::singleline(&mut edit_config.biome_noise_octaves));
         ui.add(egui::Label::new("Height Range"));
         ui.add(egui::TextEdit::singleline(&mut edit_config.height_range));
         ui.add(egui::Label::new("Min Height"));
         ui.add(egui::TextEdit::singleline(&mut edit_config.min_height));
+        ui.add(egui::Label::new("Loading Distance"));
+        ui.add(egui::TextEdit::singleline(&mut edit_config.loading_distance));
         
         let update = ui.add(egui::Button::new("Update Config"));
 
@@ -265,6 +287,27 @@ fn ui_main(
             config.min_height = match edit_config.min_height.parse::<i32>() {
                 Ok(val) => val,
                 Err(_) => config.min_height,
+            };
+            config.height_noise_octaves = match edit_config.height_noise_ocatves.parse::<u8>() {
+                Ok (val) => val,
+                Err(_) => config.height_noise_octaves
+            };
+            config.biome_noise_octaves = match edit_config.biome_noise_octaves.parse::<u8>() {
+                Ok (val) => val,
+                Err(_) => config.biome_noise_octaves
+            };
+            config.height_noise_smooth_octaves = match edit_config.height_noise_smooth_ocatves.parse::<u8>() {
+                Ok (val) => val,
+                Err(_) => config.height_noise_smooth_octaves
+            };
+            config.depth_adjust_noise_octaves = match edit_config.depth_adjust_noise_octaves.parse::<u8>() {
+                Ok (val) => val,
+                Err(_) => config.depth_adjust_noise_octaves
+            };
+
+            config.loading_distance = match edit_config.loading_distance.parse::<u8>() {
+                Ok (val) => val,
+                Err(_) => config.loading_distance
             };
         }
     });

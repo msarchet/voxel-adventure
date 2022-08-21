@@ -1,5 +1,7 @@
 use std::ops::{Add, Sub};
 
+use bevy::prelude::Entity;
+
 pub type Voxel = u64;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Default)]
@@ -76,6 +78,8 @@ impl Sub for Vector3 {
 
 pub struct ChunkData {
     pub voxels: Vec<Voxel>,
+    pub entity: Entity,
+    pub has_generated_structures: bool,
 }
 
 
