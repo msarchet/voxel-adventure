@@ -2,21 +2,22 @@ use std::ops::{Add, Sub};
 
 pub type Voxel = u64;
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Vector3Int {
     pub x: i64,
     pub y: i64,
     pub z: i64,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Default)]
 pub struct VoxelCoords {
 	pub x: u16,
 	pub y: u16,
 	pub z: u16
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct Vector3 {
     pub x: f64,
     pub y: f64,

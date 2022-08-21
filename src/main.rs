@@ -47,13 +47,10 @@ fn main() {
         .add_stage_after(CoreStage::Last, CustomStages::Cleanup, SystemStage::parallel())
         .add_system_to_stage(CustomStages::Cleanup, manage_loaded_chunk)
         .init_resource::<CubeMeshData>()
-        .init_resource::<GenerationState>()
+        .init_resource::<ConfigurationState>()
         .init_resource::<VoxelFaceEdges>()
+        .init_resource::<ChunkState>()
         .insert_resource(MaterialCache { chunk_material: Option::None })
-        .insert_resource(ChunkState {
-            chunks_load: vec![],
-            chunks: HashMap::<Vector3Int, Entity>::new()
-        })
         .run();
 }
 
@@ -63,6 +60,7 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut state: ResMut<ChunkState>,
     mut material_cache: ResMut<MaterialCache>,
+    config: Res<ConfigurationState>,
     asset_server: Res<AssetServer>,
 ) {
     let texture_handle = asset_server.load("textures/simple_textures.png");
@@ -76,12 +74,14 @@ fn setup(
 
     material_cache.chunk_material = Some(chunk_material);
 
-    let center = Vector3Int { x: 0, y: 0, z: 0};
-    for x in -5..5 {
-        for z in -5..5 {
-            state.chunks_load.push(Vector3Int { x: x, y: 0, z: z} + center);
+    let center = state.center;
+
+    for x in 0-config.loading_distance..config.loading_distance {
+        for z in 0-config.loading_distance..config.loading_distance {
+            state.chunks_load.push(Vector3Int { x: x as i64, y: 0, z: z as i64} + center);
         }
     }
+
     commands.spawn_bundle(DirectionalLightBundle {
         directional_light: DirectionalLight {
             illuminance: 10000.0,
@@ -165,11 +165,26 @@ struct GenerateStateEdit {
 }
 
 fn ui_main(
+    input: Res<Input<KeyCode>>,
     mut egui_context: ResMut<EguiContext>,
-    mut config: ResMut<GenerationState>,
+    mut config: ResMut<ConfigurationState>,
     mut edit_config: Local<GenerateStateEdit>,
+    mut ran_once: Local<bool>,
+    mut is_shown: Local<bool>,
     mut is_init: Local<bool>,
 ) {
+    if *ran_once != true {
+        *ran_once = true;
+        *is_shown = true;
+    }
+
+
+    if input.just_pressed(KeyCode::End) {
+        *is_shown = !(*is_shown);
+    }
+
+    if !(*is_shown) { return }
+
     egui::panel::SidePanel::left("config_panel").show(egui_context.ctx_mut(), |ui| {
         if  !*is_init {
             *is_init = true;
@@ -188,6 +203,7 @@ fn ui_main(
             edit_config.min_height = existing.min_height.to_string();
         }
 
+        ui.set_max_width(300.0);
         ui.add(egui::Label::new("Height Seed"));
         ui.add(egui::TextEdit::singleline(&mut edit_config.height_seed));
         ui.add(egui::Label::new("Height Noise Freq"));
@@ -209,6 +225,10 @@ fn ui_main(
         
         let update = ui.add(egui::Button::new("Update Config"));
 
+        ui.horizontal_wrapped(|ui| {
+            ui.add(egui::Label::new("Press Home to clear chunks."));
+            ui.add(egui::Label::new("Press End to toogle this UI."));
+        });
         if update.clicked() {
             config.height_seed = match edit_config.height_seed.parse::<i32>() {
                 Ok(val) => val,

@@ -36,6 +36,7 @@ pub mod voxel_helpers {
     pub fn get_index_from_coords(c: VoxelCoords) -> usize {
         get_index(c.x, c.y, c.z)
     }
+
     pub fn get_index(x: u16, y: u16, z: u16) -> usize {
         usize::from((x & 0xf) | ((z & 0xF) << 4) | ((y & 0xFF) << 8))
     }

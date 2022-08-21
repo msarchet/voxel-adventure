@@ -20,13 +20,16 @@ pub struct Chunk {
     pub coords: Vector3Int,
 }
 
+#[derive(Default)]
 pub struct ChunkState {
     pub chunks_load: Vec<Vector3Int>,
     pub chunks: HashMap<Vector3Int, Entity>,
+    pub center: Vector3Int,
 }
 
+
 #[derive(Copy, Clone)]
-pub struct GenerationState {
+pub struct ConfigurationState {
 	pub height_seed: i32, 
 	pub depth_adjust_seed: i32,
 	pub biome_seed: i32,
@@ -36,9 +39,10 @@ pub struct GenerationState {
 	pub biome_noise_freq: f64,
 	pub height_range: f64,
 	pub min_height: i32,
+    pub loading_distance: u8,
 }
 
-impl Default for GenerationState  {
+impl Default for ConfigurationState  {
     fn default() -> Self {
         Self { 
             height_seed: 90853,
@@ -49,7 +53,8 @@ impl Default for GenerationState  {
             depth_adjust_noise_freq: 0.02125,
             biome_noise_freq: 0.00085,
             height_range: 100.0,
-            min_height: 20
+            min_height: 20,
+            loading_distance: 16,
         }
     }
 }
@@ -58,6 +63,7 @@ impl Default for GenerationState  {
 pub fn reload_chunk(
     mut commands: Commands,
     mut state: ResMut<ChunkState>,
+    generation_state: Res<ConfigurationState>,
     input: Res<Input<KeyCode>>,
     query: Query<Entity, With<Chunk>>) {
     
@@ -70,10 +76,13 @@ pub fn reload_chunk(
     state.chunks.clear();
     state.chunks_load.clear();
 
-    let center = Vector3Int { x: 0, y: 0, z: 0};
-    for x in -20..20 {
-        for z in -20..20 {
-            state.chunks_load.push(Vector3Int { x: x, y: 0, z: z} + center);
+    let copy_center = state.center.clone();
+    let min = 0 - generation_state.loading_distance as i64;
+    let max = generation_state.loading_distance as i64;
+
+    for x in min..max {
+        for z in min..max {
+            state.chunks_load.push(Vector3Int { x: x, y: 0, z: z} + copy_center);
         }
     }
 
@@ -100,6 +109,7 @@ pub fn queue_new_chunks(
 
 pub fn manage_loaded_chunk(
     mut state: ResMut<ChunkState>,
+    config: Res<ConfigurationState>,
     mut commands: Commands,
     camera_query: Query<(Entity, &Transform), With<GenerationCenter>>,
     query: Query<(Entity, &Chunk)>
@@ -116,8 +126,10 @@ pub fn manage_loaded_chunk(
     // update any chunks with appropriate flags based on location
     match camera_coords {
         Some(camera_coords) => {
-            let max = camera_coords + Vector3Int {x: 20, y: 0, z: 20};
-            let min = camera_coords - Vector3Int {x: 20, y: 0, z: 20};
+            let offset_vector = Vector3Int {x: config.loading_distance as i64, y: 0, z: config.loading_distance as i64};
+            let max = camera_coords + offset_vector;
+            let min = camera_coords - offset_vector;
+            state.center = camera_coords;
             // set some chunks to be loaded
             for x in min.x..max.x {
                 for z in min.z..max.z {
@@ -129,21 +141,20 @@ pub fn manage_loaded_chunk(
                 }
             }
 
+            let unload_distance = Vector3Int {x: config.loading_distance as i64 + 4, y: 0, z: config.loading_distance as i64 + 4};
+            let unload_min = camera_coords - unload_distance;
+            let unload_max = camera_coords + unload_distance;
 			// TODO: Unloading doesn't seem to work :(
-            //for (e, chunk) in &query {
-            //    if chunk.coords.x < min.x
-            //        || chunk.coords.z < min.z
-            //        || chunk.coords.x > max.x
-            //        || chunk.coords.z > max.z {
+            for (e, chunk) in &query {
+                if chunk.coords.x < unload_min.x
+                    || chunk.coords.z < unload_min.z
+                    || chunk.coords.x > unload_max.x
+                    || chunk.coords.z > unload_max.z {
 
-            //            match state.chunks.remove(&chunk.coords) {
-            //                Some (coords) => println!("Removed"),
-            //                None => panic!("didnt remove,{},{}", chunk.coords.x, chunk.coords.z)
-            //            }
 
-            //            commands.entity(e).despawn_recursive();
-            //        }
-            //}
+                        commands.entity(e).despawn_recursive();
+                    }
+            }
         },
         None => return
     }
@@ -152,7 +163,7 @@ pub fn manage_loaded_chunk(
 
 pub fn generator(
     mut state: ResMut<ChunkState>,
-    config: Res<GenerationState>,
+    config: Res<ConfigurationState>,
     mut commands: Commands,
     mut query: Query<(Entity, &mut Chunk), With<Generate>>,
 ) {

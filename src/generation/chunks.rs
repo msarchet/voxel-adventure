@@ -1,4 +1,4 @@
-use crate::GenerationState;
+use crate::ConfigurationState;
 use crate::common::types::*;
 use crate::common::voxels::voxel_helpers;
 use crate::generation::noise::*;
@@ -11,7 +11,7 @@ fn interpolate (lower: f64, upper: f64, value: f64) -> f64 {
 	lower + value * range
 }
 
-pub fn get_height_map(coords: Vector3, config: GenerationState) -> Vec<Voxel>{
+pub fn get_height_map(coords: Vector3, config: ConfigurationState) -> Vec<Voxel> {
 	let mut voxels: Vec<Voxel> = vec![0;16*16*128];
     let height_map_gen = OpenSimplex::new();
 	let mut y0: f64;
