@@ -1,6 +1,6 @@
 use bevy::{prelude::*, utils::HashMap, render::mesh};
 
-use crate::{common::types::*, meshing::{chunk::{run_first_pass_meshing, VoxelFaceEdges, update_edge_meshes, get_mesh_data}, cubemeshes::CubeMeshData}, generation::chunks, MaterialCache};
+use crate::{common::{types::*, voxels::voxel_helpers}, meshing::{chunk::{run_first_pass_meshing, VoxelFaceEdges, update_edge_meshes, get_mesh_data}, cubemeshes::CubeMeshData}, generation::chunks, MaterialCache};
 
 #[derive(Component)]
 pub struct GenerationCenter;
@@ -25,6 +25,36 @@ pub struct ChunkState {
     pub chunks_load: Vec<Vector3Int>,
     pub chunks: HashMap<Vector3Int, ChunkData>,
     pub center: Vector3Int,
+}
+
+trait ChunkLookup {
+    fn get_voxel(&self, chunk_coords: Vector3Int, voxel_coords: VoxelCoords) -> Option<Voxel>;
+    fn set_voxel(&mut self, chunk_coords: Vector3Int, voxel_coords: VoxelCoords, data: Voxel) -> Option<Voxel>;
+}
+
+impl ChunkLookup for ChunkState {
+    fn get_voxel(&self, chunk_coords: Vector3Int, voxel_coords: VoxelCoords) -> Option<Voxel> {
+        if let Some(chunk) = self.chunks.get(&chunk_coords) {
+            let index = voxel_helpers::get_index_from_coords(voxel_coords);
+            if chunk.voxels.len() <= index {
+                return Some(chunk.voxels[index]);
+            }
+        }
+
+        None
+    }
+
+    fn set_voxel(&mut self, chunk_coords: Vector3Int, voxel_coords: VoxelCoords, data: Voxel) -> Option<Voxel> {
+        if let Some(chunk) = self.chunks.get_mut(&chunk_coords) {
+            let index = voxel_helpers::get_index_from_coords(voxel_coords);
+            if chunk.voxels.len() <= index {
+                chunk.voxels[index] = data;
+                return Some(data)
+            }
+        }
+
+        None
+    }
 }
 
 
@@ -124,7 +154,7 @@ pub fn manage_loaded_chunk(
 ) {
     let mut camera_coords: Option::<Vector3Int> = None;
 
-    for (e, transform) in camera_query.iter() {
+    for (_, transform) in camera_query.iter() {
         camera_coords = Some(Vector3Int {x: transform.translation.x as i64 / 16, y: transform.translation.y as i64, z: transform.translation.z as i64 / 16 });
         //println!("{},{},{}",camera_coords.x, camera_coords.y, camera_coords.z);
     }
@@ -174,9 +204,9 @@ pub fn generator(
     mut state: ResMut<ChunkState>,
     config: Res<ConfigurationState>,
     mut commands: Commands,
-    mut query: Query<(Entity, &mut Chunk), With<Generate>>,
+    mut query: Query<(Entity, &Chunk), With<Generate>>,
 ) {
-    for (entity, mut chunk) in query.iter_mut() {
+    for (entity, chunk) in query.iter_mut() {
         let mut new_chunk_data = ChunkData { 
             voxels: chunks::get_height_map(Vector3{x: chunk.coords.x as f64, y: chunk.coords.y as f64, z: chunk.coords.z as f64}, config.clone()),
             entity: entity.clone(),
@@ -209,32 +239,29 @@ pub fn generate_full_edge_meshes (
             backward_chunk_data,
             chunk_data
         ]) = mut_state.chunks.get_many_mut([&left, &right, &forward, &backward, &chunk.coords]) {
-            let mut copied_voxels = chunk_data.voxels.clone();
-            update_edge_meshes(&mut copied_voxels,
+            update_edge_meshes(&mut chunk_data.voxels,
                 &left_chunk_data.voxels,
                 &face_edges.edges[0],
                 LEFT_FACE,
                 NOT_LEFT_FACE);
 
-            update_edge_meshes(&mut copied_voxels,
+            update_edge_meshes(&mut chunk_data.voxels,
                 &right_chunk_data.voxels,
                 &face_edges.edges[1],
                 RIGHT_FACE,
                 NOT_RIGHT_FACE);
 
-            update_edge_meshes(&mut copied_voxels,
+            update_edge_meshes(&mut chunk_data.voxels,
                 &forward_chunk_data.voxels,
                 &face_edges.edges[2],
                 FORWARD_FACE,
                 NOT_FORWARD_FACE);
 
-            update_edge_meshes(&mut copied_voxels,
+            update_edge_meshes(&mut chunk_data.voxels,
                 &backward_chunk_data.voxels,
                 &face_edges.edges[3],
                 BACKWARD_FACE,
                 NOT_BACKWARD_FACE);
-
-            chunk_data.voxels.clone_from(&copied_voxels);
 
             commands.entity(e).remove::<GenerateFaces>();
             commands.entity(e).insert(NeedsRender);

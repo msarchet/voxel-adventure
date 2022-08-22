@@ -1,10 +1,8 @@
-use std::string;
 
 use bevy::input::mouse::MouseMotion;
 use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
 use bevy::render::camera::Projection;
-use bevy::utils::HashMap;
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 
 use meshing::cubemeshes::CubeMeshData;
