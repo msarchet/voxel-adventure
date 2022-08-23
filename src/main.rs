@@ -170,6 +170,7 @@ struct GenerateStateEdit {
 
 fn ui_main(
     input: Res<Input<KeyCode>>,
+    state: Res<ChunkState>,
     mut egui_context: ResMut<EguiContext>,
     mut config: ResMut<ConfigurationState>,
     mut edit_config: Local<GenerateStateEdit>,
@@ -246,6 +247,8 @@ fn ui_main(
         let update = ui.add(egui::Button::new("Update Config"));
 
         ui.horizontal_wrapped(|ui| {
+            ui.add(egui::Label::new(state.center.x.to_string()));
+            ui.add(egui::Label::new(state.center.z.to_string()));
             ui.add(egui::Label::new("Press Home to clear chunks."));
             ui.add(egui::Label::new("Press End to toogle this UI."));
         });
