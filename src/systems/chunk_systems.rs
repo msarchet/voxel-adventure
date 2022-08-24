@@ -1,4 +1,5 @@
 use bevy::{prelude::*, utils::HashMap, render::mesh};
+use bevy_inspector_egui::{Inspectable, egui};
 
 use crate::{common::{types::*, voxels::voxel_helpers}, meshing::{chunk::{run_first_pass_meshing, VoxelFaceEdges, update_edge_meshes, get_mesh_data}, cubemeshes::CubeMeshData}, generation::chunks, MaterialCache};
 
@@ -58,44 +59,101 @@ impl ChunkLookup for ChunkState {
 }
 
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Inspectable)]
+pub struct BiomeConfiguration {
+
+    #[inspectable(min = 0, max = 50)]
+    pub min_height: i32,
+
+    pub height_range: (f64, f64),
+    pub range: (f64, f64),
+
+    pub noise_config: Option::<NoiseConfiguration>,
+}
+
+#[derive(Copy, Clone, Inspectable)]
+pub struct NoiseConfiguration {
+    pub seed: i32,
+
+    #[inspectable(min = 1, max = 8)]
+    pub octaves: u8,
+
+    #[inspectable(min = 0.00004, max = 1.0, speed=0.0001, wrapper=bigger_width)]
+    pub freq: f64,
+}
+
+#[derive(Copy, Clone, Inspectable)]
 pub struct ConfigurationState {
-	pub height_seed: i32, 
-    pub height_noise_octaves: u8,
-	pub depth_adjust_seed: i32,
-    pub depth_adjust_noise_octaves: u8,
-	pub height_noise_freq: f64,
-	pub height_noise_smooth_freq: f64,
-    pub height_noise_smooth_octaves: u8,
-	pub depth_adjust_noise_freq: f64,
-	pub biome_seed: i32,
-	pub biome_noise_freq: f64,
-    pub biome_noise_octaves: u8,
-	pub height_range: f64,
-	pub min_height: i32,
+    pub height_noise_configuration: NoiseConfiguration,
+    pub height_noise_smooth_configuration: NoiseConfiguration,
+
+    pub depth_adjust_noise_configuration: NoiseConfiguration,
+    pub biome_noise_configuration: NoiseConfiguration,
+    pub ocean_biome_config: BiomeConfiguration,
+    pub plains_biome_config: BiomeConfiguration,
+    pub mountains_biome_config: BiomeConfiguration,
+
+    #[inspectable(min = 5, max = 200)]
     pub loading_distance: u8,
+    pub generate_ocean_water: bool,
+    pub biome_range: (f64, f64),
 }
 
 impl Default for ConfigurationState  {
     fn default() -> Self {
         Self { 
-            height_seed: 90853,
-            depth_adjust_seed: 4958,
-            height_noise_freq: 0.00825,
-            height_noise_smooth_freq: 0.00825,
-            depth_adjust_noise_freq: 0.02125,
-            biome_seed: 08320,
-            biome_noise_freq: 0.00085,
-            height_range: 100.0,
-            min_height: 20,
+            height_noise_configuration : NoiseConfiguration {
+                seed: 13459,
+                freq: 0.02250,
+                octaves: 8
+            },
+            biome_noise_configuration: NoiseConfiguration {
+                seed: 5983,
+                freq: 0.00085,
+                octaves: 9,
+            },
+            depth_adjust_noise_configuration : NoiseConfiguration {
+                seed: 4958,
+                freq: 0.02125,
+                octaves: 6,
+            },
+            height_noise_smooth_configuration : NoiseConfiguration {
+                seed: 13459,
+                freq: 0.00825,
+                octaves: 3,
+            },
+            ocean_biome_config: BiomeConfiguration {
+                min_height: 5,
+                height_range: (0.0, 30.0),
+                range: (0.0, 0.4),
+                noise_config: None,
+            },
+            plains_biome_config: BiomeConfiguration {
+                min_height: 25,
+                height_range: (0.0, 50.0),
+                range: (0.3, 0.75),
+                noise_config: None,
+            },
+            mountains_biome_config: BiomeConfiguration {
+                min_height: 40,
+                height_range: (0.0, 100.0),
+                range: (0.65, 1.0),
+                noise_config: None,
+            },
             loading_distance: 16,
-            height_noise_octaves: 8,
-            depth_adjust_noise_octaves: 6,
-            height_noise_smooth_octaves: 3,
-            biome_noise_octaves: 9,
+            generate_ocean_water: false,
+            biome_range: (0.0, 1.0)
         }
     }
 }
+
+fn bigger_width(ui: &mut egui::Ui, mut content: impl FnMut(&mut egui::Ui)) {
+    ui.scope(|ui| {
+        ui.set_min_width(400.0);
+        content(ui);
+    });
+}
+
 
 
 pub fn reload_chunk(

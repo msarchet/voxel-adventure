@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use bevy::render::camera::Projection;
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 
+use bevy_inspector_egui::InspectorPlugin;
 use meshing::cubemeshes::CubeMeshData;
 use crate::common::types::*;
 use crate::meshing::chunk::*;
@@ -41,13 +42,13 @@ fn main() {
         .add_system(movement.after(generator))
         .add_system(pan_orbit_camera.after(movement))
         .add_system(reload_chunk.after(pan_orbit_camera))
-        .add_system(ui_main)
         .add_stage_after(CoreStage::Last, CustomStages::Cleanup, SystemStage::parallel())
         .add_system_to_stage(CustomStages::Cleanup, manage_loaded_chunk)
         .init_resource::<CubeMeshData>()
         .init_resource::<ConfigurationState>()
         .init_resource::<VoxelFaceEdges>()
         .init_resource::<ChunkState>()
+        .add_plugin(InspectorPlugin::<ConfigurationState>::new())
         .insert_resource(MaterialCache { chunk_material: Option::None })
         .run();
 }
@@ -83,7 +84,7 @@ fn setup(
 
     commands.spawn_bundle(DirectionalLightBundle {
         directional_light: DirectionalLight {
-            illuminance: 10000.0,
+            illuminance: 5000.0,
             shadows_enabled: true,
             ..default()
         },
@@ -150,170 +151,170 @@ fn movement(
 }
 
 
-#[derive(Default)]
-struct GenerateStateEdit {
-	pub height_seed: String, 
-    pub height_noise_ocatves: String,
-	pub height_noise_freq: String,
-	pub height_noise_smooth_freq: String,
-    pub height_noise_smooth_ocatves: String,
-	pub depth_adjust_seed: String,
-	pub depth_adjust_noise_freq: String,
-    pub depth_adjust_noise_octaves: String,
-	pub biome_seed: String,
-	pub biome_noise_freq: String,
-    pub biome_noise_octaves: String,
-	pub height_range: String,
-	pub min_height: String,
-    pub loading_distance: String,
-}
-
-fn ui_main(
-    input: Res<Input<KeyCode>>,
-    state: Res<ChunkState>,
-    mut egui_context: ResMut<EguiContext>,
-    mut config: ResMut<ConfigurationState>,
-    mut edit_config: Local<GenerateStateEdit>,
-    mut ran_once: Local<bool>,
-    mut is_shown: Local<bool>,
-    mut is_init: Local<bool>,
-) {
-    if *ran_once != true {
-        *ran_once = true;
-        *is_shown = true;
-    }
-
-
-    if input.just_pressed(KeyCode::End) {
-        *is_shown = !(*is_shown);
-    }
-
-    if !(*is_shown) { return }
-
-    egui::panel::SidePanel::left("config_panel").show(egui_context.ctx_mut(), |ui| {
-        if  !*is_init {
-            *is_init = true;
-            let existing = *config;
-            edit_config.height_seed = existing.height_seed.to_string();
-            edit_config.height_noise_ocatves= existing.height_noise_octaves.to_string();
-            edit_config.height_noise_freq = existing.height_noise_freq.to_string();
-            edit_config.height_noise_smooth_freq = existing.height_noise_smooth_freq.to_string();
-            edit_config.height_noise_smooth_ocatves= existing.height_noise_smooth_octaves.to_string();
-            
-            edit_config.depth_adjust_seed = existing.depth_adjust_seed.to_string();
-            edit_config.depth_adjust_noise_freq = existing.depth_adjust_noise_freq.to_string();
-            edit_config.depth_adjust_noise_octaves= existing.depth_adjust_noise_octaves.to_string();
-
-            edit_config.biome_seed= existing.biome_seed.to_string();
-            edit_config.biome_noise_freq = existing.biome_noise_freq.to_string();
-            edit_config.biome_noise_octaves= existing.biome_noise_octaves.to_string();
-
-            edit_config.height_range = existing.height_range.to_string();
-            edit_config.min_height = existing.min_height.to_string();
-
-            edit_config.loading_distance = existing.loading_distance.to_string();
-        }
-
-        ui.set_max_width(300.0);
-        ui.add(egui::Label::new("Height Seed"));
-        ui.add(egui::TextEdit::singleline(&mut edit_config.height_seed));
-        ui.add(egui::Label::new("Height Noise Freq"));
-        ui.add(egui::TextEdit::singleline(&mut edit_config.height_noise_freq));
-        ui.add(egui::Label::new("Height Noise Octaves"));
-        ui.add(egui::TextEdit::singleline(&mut edit_config.height_noise_ocatves));
-        ui.add(egui::Label::new("Height Noise Smooth Freq"));
-        ui.add(egui::TextEdit::singleline(&mut edit_config.height_noise_smooth_freq));
-        ui.add(egui::Label::new("Height Noise Smooth Octaves"));
-        ui.add(egui::TextEdit::singleline(&mut edit_config.height_noise_smooth_ocatves));
-        ui.add(egui::Label::new("Depth Adjust Seed"));
-        ui.add(egui::TextEdit::singleline(&mut edit_config.depth_adjust_seed));
-        ui.add(egui::Label::new("Depth Adjust Noise Freq"));
-        ui.add(egui::TextEdit::singleline(&mut edit_config.depth_adjust_noise_freq));
-        ui.add(egui::Label::new("Depth Adjust Octaves"));
-        ui.add(egui::TextEdit::singleline(&mut edit_config.depth_adjust_noise_octaves));
-        ui.add(egui::Label::new("Biome Seed"));
-        ui.add(egui::TextEdit::singleline(&mut edit_config.biome_seed));
-        ui.add(egui::Label::new("Biome Noise Freq"));
-        ui.add(egui::TextEdit::singleline(&mut edit_config.biome_noise_freq));
-        ui.add(egui::Label::new("Biome Noise Octaves"));
-        ui.add(egui::TextEdit::singleline(&mut edit_config.biome_noise_octaves));
-        ui.add(egui::Label::new("Height Range"));
-        ui.add(egui::TextEdit::singleline(&mut edit_config.height_range));
-        ui.add(egui::Label::new("Min Height"));
-        ui.add(egui::TextEdit::singleline(&mut edit_config.min_height));
-        ui.add(egui::Label::new("Loading Distance"));
-        ui.add(egui::TextEdit::singleline(&mut edit_config.loading_distance));
-        
-        let update = ui.add(egui::Button::new("Update Config"));
-
-        ui.horizontal_wrapped(|ui| {
-            ui.add(egui::Label::new(state.center.x.to_string()));
-            ui.add(egui::Label::new(state.center.z.to_string()));
-            ui.add(egui::Label::new("Press Home to clear chunks."));
-            ui.add(egui::Label::new("Press End to toogle this UI."));
-        });
-        if update.clicked() {
-            config.height_seed = match edit_config.height_seed.parse::<i32>() {
-                Ok(val) => val,
-                Err(_) => config.height_seed,
-            };
-            config.height_noise_freq = match edit_config.height_noise_freq.parse::<f64>() {
-                Ok(val) => val,
-                Err(_) => config.height_noise_freq,
-            };
-            config.height_noise_smooth_freq = match edit_config.height_noise_smooth_freq.parse::<f64>() {
-                Ok(val) => val,
-                Err(_) => config.height_noise_smooth_freq,
-            };
-            config.depth_adjust_seed = match edit_config.depth_adjust_seed.parse::<i32>() {
-                Ok(val) => val,
-                Err(_) => config.depth_adjust_seed,
-            };
-            config.depth_adjust_noise_freq = match edit_config.depth_adjust_noise_freq.parse::<f64>() {
-                Ok(val) => val,
-                Err(_) => config.depth_adjust_noise_freq,
-            };
-            config.biome_seed = match edit_config.biome_seed.parse::<i32>() {
-                Ok(val) => val,
-                Err(_) => config.biome_seed,
-            };
-            config.biome_noise_freq = match edit_config.biome_noise_freq.parse::<f64>() {
-                Ok(val) => val,
-                Err(_) => config.biome_noise_freq,
-            };
-            config.height_range = match edit_config.height_range.parse::<f64>() {
-                Ok(val) => val,
-                Err(_) => config.height_range,
-            };
-            config.min_height = match edit_config.min_height.parse::<i32>() {
-                Ok(val) => val,
-                Err(_) => config.min_height,
-            };
-            config.height_noise_octaves = match edit_config.height_noise_ocatves.parse::<u8>() {
-                Ok (val) => val,
-                Err(_) => config.height_noise_octaves
-            };
-            config.biome_noise_octaves = match edit_config.biome_noise_octaves.parse::<u8>() {
-                Ok (val) => val,
-                Err(_) => config.biome_noise_octaves
-            };
-            config.height_noise_smooth_octaves = match edit_config.height_noise_smooth_ocatves.parse::<u8>() {
-                Ok (val) => val,
-                Err(_) => config.height_noise_smooth_octaves
-            };
-            config.depth_adjust_noise_octaves = match edit_config.depth_adjust_noise_octaves.parse::<u8>() {
-                Ok (val) => val,
-                Err(_) => config.depth_adjust_noise_octaves
-            };
-
-            config.loading_distance = match edit_config.loading_distance.parse::<u8>() {
-                Ok (val) => val,
-                Err(_) => config.loading_distance
-            };
-        }
-    });
-        // …
-}
+//#[derive(Default)]
+//struct GenerateStateEdit {
+//	pub height_seed: String, 
+//    pub height_noise_ocatves: String,
+//	pub height_noise_freq: String,
+//	pub height_noise_smooth_freq: String,
+//    pub height_noise_smooth_ocatves: String,
+//	pub depth_adjust_seed: String,
+//	pub depth_adjust_noise_freq: String,
+//    pub depth_adjust_noise_octaves: String,
+//	pub biome_seed: String,
+//	pub biome_noise_freq: String,
+//    pub biome_noise_octaves: String,
+//	pub height_range: String,
+//	pub min_height: String,
+//    pub loading_distance: String,
+//}
+//
+//fn ui_main(
+//    input: Res<Input<KeyCode>>,
+//    state: Res<ChunkState>,
+//    mut egui_context: ResMut<EguiContext>,
+//    mut config: ResMut<ConfigurationState>,
+//    mut edit_config: Local<GenerateStateEdit>,
+//    mut ran_once: Local<bool>,
+//    mut is_shown: Local<bool>,
+//    mut is_init: Local<bool>,
+//) {
+//    if *ran_once != true {
+//        *ran_once = true;
+//        *is_shown = true;
+//    }
+//
+//
+//    if input.just_pressed(KeyCode::End) {
+//        *is_shown = !(*is_shown);
+//    }
+//
+//    if !(*is_shown) { return }
+//
+//    egui::panel::SidePanel::left("config_panel").show(egui_context.ctx_mut(), |ui| {
+//        if  !*is_init {
+//            *is_init = true;
+//            let existing = *config;
+//            edit_config.height_seed = existing.height_seed.to_string();
+//            edit_config.height_noise_ocatves= existing.height_noise_octaves.to_string();
+//            edit_config.height_noise_freq = existing.height_noise_freq.to_string();
+//            edit_config.height_noise_smooth_freq = existing.height_noise_smooth_freq.to_string();
+//            edit_config.height_noise_smooth_ocatves= existing.height_noise_smooth_octaves.to_string();
+//            
+//            edit_config.depth_adjust_seed = existing.depth_adjust_seed.to_string();
+//            edit_config.depth_adjust_noise_freq = existing.depth_adjust_noise_freq.to_string();
+//            edit_config.depth_adjust_noise_octaves= existing.depth_adjust_noise_octaves.to_string();
+//
+//            edit_config.biome_seed= existing.biome_seed.to_string();
+//            edit_config.biome_noise_freq = existing.biome_noise_freq.to_string();
+//            edit_config.biome_noise_octaves= existing.biome_noise_octaves.to_string();
+//
+//            edit_config.height_range = existing.height_range.to_string();
+//            edit_config.min_height = existing.min_height.to_string();
+//
+//            edit_config.loading_distance = existing.loading_distance.to_string();
+//        }
+//
+//        ui.set_max_width(300.0);
+//        ui.add(egui::Label::new("Height Seed"));
+//        ui.add(egui::TextEdit::singleline(&mut edit_config.height_seed));
+//        ui.add(egui::Label::new("Height Noise Freq"));
+//        ui.add(egui::TextEdit::singleline(&mut edit_config.height_noise_freq));
+//        ui.add(egui::Label::new("Height Noise Octaves"));
+//        ui.add(egui::TextEdit::singleline(&mut edit_config.height_noise_ocatves));
+//        ui.add(egui::Label::new("Height Noise Smooth Freq"));
+//        ui.add(egui::TextEdit::singleline(&mut edit_config.height_noise_smooth_freq));
+//        ui.add(egui::Label::new("Height Noise Smooth Octaves"));
+//        ui.add(egui::TextEdit::singleline(&mut edit_config.height_noise_smooth_ocatves));
+//        ui.add(egui::Label::new("Depth Adjust Seed"));
+//        ui.add(egui::TextEdit::singleline(&mut edit_config.depth_adjust_seed));
+//        ui.add(egui::Label::new("Depth Adjust Noise Freq"));
+//        ui.add(egui::TextEdit::singleline(&mut edit_config.depth_adjust_noise_freq));
+//        ui.add(egui::Label::new("Depth Adjust Octaves"));
+//        ui.add(egui::TextEdit::singleline(&mut edit_config.depth_adjust_noise_octaves));
+//        ui.add(egui::Label::new("Biome Seed"));
+//        ui.add(egui::TextEdit::singleline(&mut edit_config.biome_seed));
+//        ui.add(egui::Label::new("Biome Noise Freq"));
+//        ui.add(egui::TextEdit::singleline(&mut edit_config.biome_noise_freq));
+//        ui.add(egui::Label::new("Biome Noise Octaves"));
+//        ui.add(egui::TextEdit::singleline(&mut edit_config.biome_noise_octaves));
+//        ui.add(egui::Label::new("Height Range"));
+//        ui.add(egui::TextEdit::singleline(&mut edit_config.height_range));
+//        ui.add(egui::Label::new("Min Height"));
+//        ui.add(egui::TextEdit::singleline(&mut edit_config.min_height));
+//        ui.add(egui::Label::new("Loading Distance"));
+//        ui.add(egui::TextEdit::singleline(&mut edit_config.loading_distance));
+//        
+//        let update = ui.add(egui::Button::new("Update Config"));
+//
+//        ui.horizontal_wrapped(|ui| {
+//            ui.add(egui::Label::new(state.center.x.to_string()));
+//            ui.add(egui::Label::new(state.center.z.to_string()));
+//            ui.add(egui::Label::new("Press Home to clear chunks."));
+//            ui.add(egui::Label::new("Press End to toogle this UI."));
+//        });
+//        if update.clicked() {
+//            config.height_seed = match edit_config.height_seed.parse::<i32>() {
+//                Ok(val) => val,
+//                Err(_) => config.height_seed,
+//            };
+//            config.height_noise_freq = match edit_config.height_noise_freq.parse::<f64>() {
+//                Ok(val) => val,
+//                Err(_) => config.height_noise_freq,
+//            };
+//            config.height_noise_smooth_freq = match edit_config.height_noise_smooth_freq.parse::<f64>() {
+//                Ok(val) => val,
+//                Err(_) => config.height_noise_smooth_freq,
+//            };
+//            config.depth_adjust_seed = match edit_config.depth_adjust_seed.parse::<i32>() {
+//                Ok(val) => val,
+//                Err(_) => config.depth_adjust_seed,
+//            };
+//            config.depth_adjust_noise_freq = match edit_config.depth_adjust_noise_freq.parse::<f64>() {
+//                Ok(val) => val,
+//                Err(_) => config.depth_adjust_noise_freq,
+//            };
+//            config.biome_seed = match edit_config.biome_seed.parse::<i32>() {
+//                Ok(val) => val,
+//                Err(_) => config.biome_seed,
+//            };
+//            config.biome_noise_freq = match edit_config.biome_noise_freq.parse::<f64>() {
+//                Ok(val) => val,
+//                Err(_) => config.biome_noise_freq,
+//            };
+//            config.height_range = match edit_config.height_range.parse::<f64>() {
+//                Ok(val) => val,
+//                Err(_) => config.height_range,
+//            };
+//            config.min_height = match edit_config.min_height.parse::<i32>() {
+//                Ok(val) => val,
+//                Err(_) => config.min_height,
+//            };
+//            config.height_noise_octaves = match edit_config.height_noise_ocatves.parse::<u8>() {
+//                Ok (val) => val,
+//                Err(_) => config.height_noise_octaves
+//            };
+//            config.biome_noise_octaves = match edit_config.biome_noise_octaves.parse::<u8>() {
+//                Ok (val) => val,
+//                Err(_) => config.biome_noise_octaves
+//            };
+//            config.height_noise_smooth_octaves = match edit_config.height_noise_smooth_ocatves.parse::<u8>() {
+//                Ok (val) => val,
+//                Err(_) => config.height_noise_smooth_octaves
+//            };
+//            config.depth_adjust_noise_octaves = match edit_config.depth_adjust_noise_octaves.parse::<u8>() {
+//                Ok (val) => val,
+//                Err(_) => config.depth_adjust_noise_octaves
+//            };
+//
+//            config.loading_distance = match edit_config.loading_distance.parse::<u8>() {
+//                Ok (val) => val,
+//                Err(_) => config.loading_distance
+//            };
+//        }
+//    });
+//        // …
+//}
 
 
 //// CAMERA STUFF MOVE SOON from cookbox

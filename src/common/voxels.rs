@@ -45,7 +45,7 @@ pub mod voxel_helpers {
     pub fn get_coords(v: Voxel) -> u64 { (v >> COORDS_OFFSET) & 0xFFFFFF }
 
     pub fn is_filled (v: Voxel) -> bool { ((v >> IS_FILLED_OFFSET) & 0b1) == 1 }
-    pub fn set_filled (v: Voxel) -> Voxel { (v & IS_FILLED_MASK) | (1 << IS_FILLED_OFFSET) }
+    pub fn set_filled (v: Voxel, filled: bool) -> Voxel { (v & IS_FILLED_MASK) | ((filled as u64) << IS_FILLED_OFFSET) }
 
 	pub fn set_mesh_data (v: Voxel, mesh_data: u64) -> Voxel { (v & MESH_DATA_MASK) | (mesh_data << MESH_DATA_OFFSET)}
 	pub fn get_mesh_data (v: Voxel) -> u64 { (v >> MESH_DATA_OFFSET) & 0b111111 	}
