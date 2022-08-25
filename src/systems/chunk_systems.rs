@@ -62,8 +62,8 @@ impl ChunkLookup for ChunkState {
 #[derive(Copy, Clone, Inspectable)]
 pub struct BiomeConfiguration {
 
-    #[inspectable(min = 0, max = 50)]
-    pub min_height: i32,
+    #[inspectable(min = 0.0, max = 50.0)]
+    pub min_height: f64,
 
     pub height_range: (f64, f64),
     pub range: (f64, f64),
@@ -97,6 +97,7 @@ pub struct ConfigurationState {
     pub loading_distance: u8,
     pub generate_ocean_water: bool,
     pub biome_range: (f64, f64),
+    pub biome_smoothing: f64,
 }
 
 impl Default for ConfigurationState  {
@@ -123,26 +124,27 @@ impl Default for ConfigurationState  {
                 octaves: 3,
             },
             ocean_biome_config: BiomeConfiguration {
-                min_height: 5,
+                min_height: 5.0,
                 height_range: (0.0, 30.0),
-                range: (0.0, 0.4),
+                range: (0.0, 0.3),
                 noise_config: None,
             },
             plains_biome_config: BiomeConfiguration {
-                min_height: 25,
+                min_height: 25.0,
                 height_range: (0.0, 50.0),
-                range: (0.3, 0.75),
+                range: (0.3, 0.7),
                 noise_config: None,
             },
             mountains_biome_config: BiomeConfiguration {
-                min_height: 40,
+                min_height: 40.0,
                 height_range: (0.0, 100.0),
-                range: (0.65, 1.0),
+                range: (0.7, 1.0),
                 noise_config: None,
             },
             loading_distance: 16,
             generate_ocean_water: false,
-            biome_range: (0.0, 1.0)
+            biome_range: (0.0, 1.0),
+            biome_smoothing: 0.2,
         }
     }
 }

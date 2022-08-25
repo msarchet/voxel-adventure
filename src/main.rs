@@ -20,6 +20,7 @@ pub mod systems;
 #[derive(Component)]
 struct Moveable;
 
+#[derive(Default)]
 pub struct MaterialCache {
     chunk_material: Option<Handle<StandardMaterial>>,
 }
@@ -48,8 +49,8 @@ fn main() {
         .init_resource::<ConfigurationState>()
         .init_resource::<VoxelFaceEdges>()
         .init_resource::<ChunkState>()
+        .init_resource::<MaterialCache>()
         .add_plugin(InspectorPlugin::<ConfigurationState>::new())
-        .insert_resource(MaterialCache { chunk_material: Option::None })
         .run();
 }
 
