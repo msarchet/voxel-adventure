@@ -2,23 +2,49 @@ use crate::common::types::*;
 use crate::common::voxels::voxel_helpers;
 use crate::meshing::cubemeshes::*;
 
-use bevy::prelude::{Component, FromWorld};
+use bevy::prelude::{Component, FromWorld };
 
 pub type UVArray = [[f32;2];4];
 
-pub fn get_uvs_for_block(uvs: & mut UVArray, block_type: u64) {
+pub enum BlockType {
+	Water,
+	Stone,
+	Grass,
+	Dirt,
+	Snow,
+	Sand,
+	Ice,
+	DarkStone,
+}
+
+impl TryFrom<u64> for BlockType {
+    type Error = ();
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+		  match value {
+			v if v == BlockType::Water as u64 => Ok(BlockType::Water),
+			v if v == BlockType::Stone as u64 => Ok(BlockType::Stone),
+			v if v == BlockType::Grass as u64 => Ok(BlockType::Grass),
+			v if v == BlockType::Dirt as u64 => Ok(BlockType::Dirt),
+			v if v == BlockType::Snow as u64 => Ok(BlockType::Snow),
+			v if v == BlockType::Sand as u64 => Ok(BlockType::Sand),
+			v if v == BlockType::Ice as u64 => Ok(BlockType::Ice),
+			v if v == BlockType::DarkStone as u64 => Ok(BlockType::DarkStone),
+			_ => Err(())
+		  }
+    }
+}
+pub fn get_uvs_for_block(uvs: & mut UVArray, block_type: BlockType) {
+	let grid_size = [4.0, 4.0];
 	match block_type {
-		1 => get_uvs(uvs, [1.0, 1.0], [4.0, 4.0]), // stone
-		2 => get_uvs(uvs, [0.0, 0.0], [4.0, 4.0]), // grass
-		3 => get_uvs(uvs, [1.0, 0.0], [4.0, 4.0]), // dirt
-		4 => get_uvs(uvs, [0.0, 3.0], [4.0, 4.0]), // water
-		5 => get_uvs(uvs, [0.0, 1.0], [4.0, 4.0]), // snow
-		_ => {
-			uvs[0] = [0.0, 0.0];
-			uvs[1] = [0.0, 0.0];
-			uvs[2] = [0.0, 0.0];
-			uvs[3] = [0.0, 0.0];
-		}
+		BlockType::Grass		=> get_uvs(uvs, [0.0, 0.0], grid_size), 
+		BlockType::Snow			=> get_uvs(uvs, [0.0, 1.0], grid_size), 
+		BlockType::Sand			=> get_uvs(uvs, [0.0, 2.0], grid_size),
+		BlockType::Water		=> get_uvs(uvs, [0.0, 3.0], grid_size),
+		BlockType::Dirt			=> get_uvs(uvs, [1.0, 0.0], grid_size), 
+		BlockType::Stone		=> get_uvs(uvs, [1.0, 1.0], grid_size),
+		BlockType::Ice			=> get_uvs(uvs, [1.0, 2.0], grid_size), 
+		BlockType::DarkStone	=> get_uvs(uvs, [1.0, 3.0], grid_size),
 	}
 }
 
@@ -94,7 +120,7 @@ pub fn get_mesh_data(chunk_data: &ChunkData, cube_data: &CubeMeshData) -> MeshDa
 		if !voxel_helpers::is_filled(voxel) { continue; }
 		mesh_key = voxel_helpers::get_mesh_data(voxel);
 		block_type = voxel_helpers::get_block_type(voxel);
-		get_uvs_for_block(&mut uvs, block_type);
+		get_uvs_for_block(&mut uvs, block_type.try_into().unwrap());
 
 		faces_res = cube_data.cubes.get(&mesh_key);
 		match faces_res {

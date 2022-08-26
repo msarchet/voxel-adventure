@@ -125,13 +125,13 @@ impl Default for ConfigurationState  {
             },
             ocean_biome_config: BiomeConfiguration {
                 min_height: 5.0,
-                height_range: (0.0, 30.0),
+                height_range: (0.0, 40.0),
                 range: (0.0, 0.3),
                 noise_config: None,
             },
             plains_biome_config: BiomeConfiguration {
-                min_height: 25.0,
-                height_range: (0.0, 50.0),
+                min_height: 40.0,
+                height_range: (0.0, 15.0),
                 range: (0.3, 0.7),
                 noise_config: None,
             },
@@ -144,7 +144,7 @@ impl Default for ConfigurationState  {
             loading_distance: 16,
             generate_ocean_water: false,
             biome_range: (0.0, 1.0),
-            biome_smoothing: 0.2,
+            biome_smoothing: 0.1,
         }
     }
 }

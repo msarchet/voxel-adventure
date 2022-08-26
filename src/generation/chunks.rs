@@ -2,6 +2,7 @@ use crate::ConfigurationState;
 use crate::common::types::*;
 use crate::common::voxels::voxel_helpers;
 use crate::generation::noise::*;
+use crate::meshing::chunk::BlockType;
 use noise::*;
 
 
@@ -98,22 +99,44 @@ pub fn get_height_map(coords: Vector3, config: ConfigurationState) -> Vec<Voxel>
 				f64::powf(1.0 - biome_noise, 3.0) 
 			};
 
-			if biome_noise > ocean_max_noise - 0.1 && biome_noise < plains_min_noise + 0.1 {
-				ocean_height = interpolate((ocean_height, ocean_max_height), f64::abs(ocean_max_noise - biome_noise) * 10.0);
-				plains_height = interpolate((plains_height, plains_min_height), f64::abs(biome_noise - plains_min_noise) * 10.0);
+			let biome_smoothing = config.biome_smoothing;
+
+			if biome_noise > ocean_max_noise - biome_smoothing && biome_noise <= ocean_max_noise {
+				ocean_height = interpolate((ocean_height, ocean_max_height), f64::abs(ocean_max_noise - biome_noise) / biome_smoothing);
 			}
 
-			if biome_noise > config.plains_biome_config.range.1 - 0.1 && biome_noise < config.mountains_biome_config.range.0 + 0.1 {
-				plains_height = interpolate((plains_height, plains_max_height), (plains_max_noise - biome_noise) * 10.0);
-				mountain_height = interpolate((mountain_height, mountain_min_height), (biome_noise - mountain_min_noise) * 10.0);
+			ocean_height *= if biome_noise >= ocean_max_noise { interpolate((1.0, 0.0), (biome_noise - ocean_max_noise) / ocean_max_noise) } else { 1.0 };
+			
+			if biome_noise > plains_min_noise && biome_noise < plains_min_noise + biome_smoothing {
+				plains_height = interpolate((plains_min_height, plains_height), f64::abs(plains_min_noise - biome_noise) / biome_smoothing);
 			}
+
+			if biome_noise > plains_max_noise - biome_smoothing && biome_noise <= plains_max_noise {
+				plains_height = interpolate((plains_height, plains_max_height), f64::abs(plains_max_noise - biome_noise) / biome_smoothing);
+			}
+
+			plains_height *= if biome_noise >= plains_max_noise { interpolate((1.0, 0.0), (biome_noise - plains_max_noise) / plains_max_noise) } else { 1.0 }; 
+
+			if biome_noise > mountain_min_noise && biome_noise < mountain_min_noise + biome_smoothing {
+				mountain_height = interpolate((mountain_min_height, mountain_height), f64::abs(biome_noise - mountain_min_noise) / biome_smoothing);
+			}
+
+			// adjust in some of the height into the mountain height
+			let mountain_min_offset = mountain_min_noise - biome_smoothing;
+			mountain_height *= if biome_noise <= mountain_min_offset {
+				0.0
+			} else if biome_noise >= mountain_min_offset  && biome_noise <= mountain_min_noise { 
+				interpolate((0.0, 1.0), f64::abs(biome_noise - mountain_min_noise) / biome_smoothing) 
+			} else { 1.0 }; 
+
 
 			plains_weight = f64::powf(if biome_noise < config.plains_biome_config.range.0 { biome_noise } else { 1.1 - biome_noise } * 2.0, 2.0) * 0.8;
 			mountain_weight = if biome_noise >= config.mountains_biome_config.range.0 { 1.2 * f64::powf(biome_noise, 2.0) } else { f64::powf(biome_noise, 2.4) };
 
-			ocean_height = ocean_height * if biome_noise >= ocean_max_noise { interpolate((1.0, 0.0), (biome_noise - ocean_max_noise) / ocean_max_noise) } else { 1.0 };
-			plains_height = plains_height * if biome_noise >= plains_max_noise { interpolate((1.0, 0.0), (biome_noise - plains_max_noise) / plains_max_noise) } else { 1.0 };
-			interpolated = (ocean_height + plains_height + mountain_height) / 3.0;
+
+			
+			interpolated = ocean_height + plains_height + mountain_height;
+			
 			// max height based on biome?
 			height = interpolated as u8;
 
@@ -137,10 +160,10 @@ pub fn get_height_map(coords: Vector3, config: ConfigurationState) -> Vec<Voxel>
 
 				if y <= height as u16 { 
 					voxel = voxel_helpers::set_filled(voxel, true);
-				} else if y < 40 {
+				} else if y < (ocean_max_height as u16) {
 					if config.generate_ocean_water {
 						voxel = voxel_helpers::set_filled(voxel, true);
-						voxel = voxel_helpers::set_block_type(voxel , 4);
+						voxel = voxel_helpers::set_block_type(voxel , BlockType::Water);
 					}
 					voxels[index] = voxel;
 					continue;
@@ -155,37 +178,49 @@ pub fn get_height_map(coords: Vector3, config: ConfigurationState) -> Vec<Voxel>
 				//	if blob_noise >= 0.8 { voxel = voxel_helpers::set_filled(voxel); }
 				//}
 
-				block_variant_noise = noise_with_octaves_01(height_map_gen,[x0  * 0.0125, z0 * 0.0125, y0 * 0.0125], 3, 12984, 0.7);
+				block_variant_noise = noise_with_octaves_01(height_map_gen,[x0  * 0.25, z0 * 0.025, y0 * 0.25], 3, 12984, 0.7);
 				block_variant_noise = f64::powf(block_variant_noise, 2.0);
-				let block_type: u64 = if y < 10 {
-					1 // stone
+				let block_type: BlockType = if y < 10 {
+					BlockType::DarkStone
 				} 
-				else if config.generate_ocean_water == false && y < 40 {
-					if y == 39 {
-						5
-					} else {
-						2
-					}
+				else if f64::abs(biome_noise - ocean_max_noise) <= 0.01 {
+					BlockType::Sand
 				}
-				else if y < 50 {
-					if block_variant_noise <= 0.3 {
-						3
+				else if y < 50  {
+					if biome_noise < ocean_max_noise {
+						if block_variant_noise <= 0.1 {
+							BlockType::Stone
+						} else {
+							BlockType::Sand
+						}
+					} else if biome_noise < plains_max_noise {
+						if block_variant_noise <= 0.1 {
+							BlockType::Sand
+						} else {
+							BlockType::Grass
+						}
 					} else {
-						1
+						if block_variant_noise <= 0.1 {
+							BlockType::Sand
+						} else {
+							BlockType::Grass
+						}
 					}
 				} 
 				else if y < 70 {
 					if block_variant_noise <= 0.3 {
-						2
+						BlockType::Dirt	
 					} else if block_variant_noise <= 0.7 {
-						1
+						BlockType::Stone
 					} else {
-						3
+						BlockType::DarkStone
 					}
+				} else if y < 90 {
+					BlockType::Stone
 				} else if y < 100 {
-					1
+					BlockType::Snow
 				} else {
-					5
+					BlockType::Ice
 				};
 				voxel = voxel_helpers::set_block_type(voxel, block_type);
 				voxels[index] = voxel;

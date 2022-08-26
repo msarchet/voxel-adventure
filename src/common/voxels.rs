@@ -15,7 +15,7 @@ pub mod voxel_helpers {
     #[allow(dead_code)]
     const BLOCK_TYPE_LENGTH: u64 = 16u64;
 
-    use crate::common::types::*;
+    use crate::{common::types::*, meshing::chunk::BlockType};
 
     pub fn get_coords_as_voxel_coords(v: Voxel) -> VoxelCoords {
         VoxelCoords {
@@ -53,5 +53,5 @@ pub mod voxel_helpers {
 	pub fn should_create_face (a: Voxel, b: Voxel) -> bool { is_filled(a) != is_filled(b) }
 
     pub fn get_block_type(v: Voxel) -> u64 { (v >> BLOCK_TYPE_OFFSET) & BLOCK_TYPE_MASK } 
-    pub fn set_block_type(v: Voxel, block_type : u64) -> Voxel { (v & BLOCK_TYPE_CLEAR_MASK) | (block_type << BLOCK_TYPE_OFFSET) }
+    pub fn set_block_type(v: Voxel, block_type : BlockType) -> Voxel { (v & BLOCK_TYPE_CLEAR_MASK) | ((block_type as u64) << BLOCK_TYPE_OFFSET)}
 }
