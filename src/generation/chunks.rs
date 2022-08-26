@@ -189,7 +189,7 @@ pub fn get_height_map(coords: Vector3, config: ConfigurationState) -> Vec<Voxel>
 				//	if blob_noise >= 0.8 { voxel = voxel_helpers::set_filled(voxel); }
 				//}
 
-				block_variant_noise = noise_with_octaves_01(height_map_gen,[x0  * 0.25, z0 * 0.025, y0 * 0.25], 3, 12984, 0.7);
+				block_variant_noise = noise_with_octaves_01(height_map_gen,[x0  * 0.025, y0 * 0.025, z0 * 0.025], 3, 12984, 0.7);
 				block_variant_noise = f64::powf(block_variant_noise, 2.0);
 				let block_type: BlockType = if y < 10 {
 					BlockType::DarkStone
