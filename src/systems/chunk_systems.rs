@@ -110,7 +110,7 @@ impl Default for ConfigurationState  {
             },
             biome_noise_configuration: NoiseConfiguration {
                 seed: 5983,
-                freq: 0.00085,
+                freq: 0.00025,
                 octaves: 9,
             },
             depth_adjust_noise_configuration : NoiseConfiguration {
@@ -144,7 +144,7 @@ impl Default for ConfigurationState  {
             loading_distance: 16,
             generate_ocean_water: false,
             biome_range: (0.0, 1.0),
-            biome_smoothing: 0.1,
+            biome_smoothing: 0.025,
         }
     }
 }
