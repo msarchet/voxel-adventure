@@ -3,7 +3,7 @@ use bevy::input::mouse::MouseMotion;
 use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
 use bevy::render::camera::Projection;
-use bevy_egui::{egui, EguiContext, EguiPlugin};
+use bevy_egui::EguiPlugin;
 
 use bevy_inspector_egui::InspectorPlugin;
 use meshing::cubemeshes::CubeMeshData;

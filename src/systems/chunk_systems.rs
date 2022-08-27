@@ -1,7 +1,22 @@
 use bevy::{prelude::*, utils::HashMap, render::mesh};
 use bevy_inspector_egui::{Inspectable, egui};
 
-use crate::{common::{types::*, voxels::voxel_helpers}, meshing::{chunk::{run_first_pass_meshing, VoxelFaceEdges, update_edge_meshes, get_mesh_data}, cubemeshes::CubeMeshData}, generation::chunks, MaterialCache};
+use crate::{
+    common::{
+        types::*,
+        voxels::voxel_helpers
+    }, 
+    meshing::{
+        chunk::{
+            run_first_pass_meshing,
+            VoxelFaceEdges,
+            update_edge_meshes,
+            get_mesh_data
+        },
+        cubemeshes::CubeMeshData
+    },
+    generation::chunks, MaterialCache
+};
 
 #[derive(Component)]
 pub struct GenerationCenter;
@@ -105,13 +120,13 @@ impl Default for ConfigurationState  {
         Self { 
             height_noise_configuration : NoiseConfiguration {
                 seed: 13459,
-                freq: 0.02250,
+                freq: 0.00250,
                 octaves: 8
             },
             biome_noise_configuration: NoiseConfiguration {
                 seed: 5983,
                 freq: 0.00025,
-                octaves: 9,
+                octaves: 4,
             },
             depth_adjust_noise_configuration : NoiseConfiguration {
                 seed: 4958,
@@ -127,19 +142,31 @@ impl Default for ConfigurationState  {
                 min_height: 5.0,
                 height_range: (0.0, 40.0),
                 range: (0.0, 0.3),
-                noise_config: None,
+                noise_config: Some(NoiseConfiguration {
+                    seed: 13459,
+                    freq: 0.00825,
+                    octaves: 3,
+                }),
             },
             plains_biome_config: BiomeConfiguration {
                 min_height: 40.0,
                 height_range: (0.0, 15.0),
                 range: (0.3, 0.7),
-                noise_config: None,
+                noise_config: Some(NoiseConfiguration {
+                    seed: 13459,
+                    freq: 0.00825,
+                    octaves: 4,
+                }),
             },
             mountains_biome_config: BiomeConfiguration {
                 min_height: 40.0,
                 height_range: (0.0, 100.0),
                 range: (0.7, 1.0),
-                noise_config: None,
+                noise_config: Some(NoiseConfiguration {
+                seed: 13459,
+                freq: 0.00250,
+                octaves: 8
+                }),
             },
             loading_distance: 16,
             generate_ocean_water: false,
@@ -180,7 +207,7 @@ pub fn reload_chunk(
 
     for x in min..max {
         for z in min..max {
-            state.chunks_load.push(Vector3Int { x: x, y: 0, z: z} + copy_center);
+            state.chunks_load.push(Vector3Int { x: x, y: 0, z: z } + copy_center);
         }
     }
 
@@ -216,7 +243,6 @@ pub fn manage_loaded_chunk(
 
     for (_, transform) in camera_query.iter() {
         camera_coords = Some(Vector3Int {x: transform.translation.x as i64 / 16, y: transform.translation.y as i64, z: transform.translation.z as i64 / 16 });
-        //println!("{},{},{}",camera_coords.x, camera_coords.y, camera_coords.z);
     }
 
     // do some stuff to despawn old chunks (or at least de_render)
@@ -286,10 +312,10 @@ pub fn generate_full_edge_meshes (
     mut state: ResMut<ChunkState>
 ) {
     for (e, chunk) in query.iter_mut() {
-        let left = chunk.coords + Vector3Int{ x:0, y: 0, z:1 };
-        let right = chunk.coords + Vector3Int{ x: 0, y: 0, z: -1};
-        let forward = chunk.coords + Vector3Int { x: 1, y: 0, z: 0};
-        let backward = chunk.coords + Vector3Int { x: -1, y: 0, z: 0};
+        let left        = chunk.coords + Vector3Int { x:  0, y: 0, z:  1 };
+        let right       = chunk.coords + Vector3Int { x:  0, y: 0, z: -1 };
+        let forward     = chunk.coords + Vector3Int { x:  1, y: 0, z:  0 };
+        let backward    = chunk.coords + Vector3Int { x: -1, y: 0, z:  0 };
 
         let mut_state = &mut state;
         if let Some([
