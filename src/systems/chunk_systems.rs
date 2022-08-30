@@ -1,4 +1,4 @@
-use bevy::{prelude::*, utils::HashMap, render::mesh};
+use bevy::{prelude::*, utils::{HashMap, HashSet}, render::mesh};
 use bevy_inspector_egui::{Inspectable, egui};
 
 use crate::{
@@ -45,15 +45,21 @@ pub struct ChunkState {
 
 trait ChunkLookup {
     fn get_voxel(&self, chunk_coords: Vector3Int, voxel_coords: VoxelCoords) -> Option<Voxel>;
+    fn get_voxel_by_index(&self, chunk_coords: Vector3Int, voxel_index: usize) -> Option<Voxel>;
     fn set_voxel(&mut self, chunk_coords: Vector3Int, voxel_coords: VoxelCoords, data: Voxel) -> Option<Voxel>;
+    fn set_voxel_by_index(&mut self, chunk_coords: Vector3Int, voxel_index: usize, data: Voxel) -> Option<Voxel>;
 }
 
 impl ChunkLookup for ChunkState {
     fn get_voxel(&self, chunk_coords: Vector3Int, voxel_coords: VoxelCoords) -> Option<Voxel> {
+        let index = voxel_helpers::get_index_from_coords(voxel_coords);
+        self.get_voxel_by_index(chunk_coords, index)
+    }
+
+    fn get_voxel_by_index(&self, chunk_coords: Vector3Int, voxel_index: usize) -> Option<Voxel> {
         if let Some(chunk) = self.chunks.get(&chunk_coords) {
-            let index = voxel_helpers::get_index_from_coords(voxel_coords);
-            if chunk.voxels.len() <= index {
-                return Some(chunk.voxels[index]);
+            if chunk.voxels.len() <= voxel_index {
+                return Some(chunk.voxels[voxel_index]);
             }
         }
 
@@ -61,10 +67,14 @@ impl ChunkLookup for ChunkState {
     }
 
     fn set_voxel(&mut self, chunk_coords: Vector3Int, voxel_coords: VoxelCoords, data: Voxel) -> Option<Voxel> {
+        let index = voxel_helpers::get_index_from_coords(voxel_coords);
+        self.set_voxel_by_index(chunk_coords, index, data)
+    }
+
+    fn set_voxel_by_index(&mut self, chunk_coords: Vector3Int, voxel_index: usize, data: Voxel) -> Option<Voxel> {
         if let Some(chunk) = self.chunks.get_mut(&chunk_coords) {
-            let index = voxel_helpers::get_index_from_coords(voxel_coords);
-            if chunk.voxels.len() <= index {
-                chunk.voxels[index] = data;
+            if chunk.voxels.len() <= voxel_index {
+                chunk.voxels[voxel_index] = data;
                 return Some(data)
             }
         }
@@ -213,6 +223,44 @@ pub fn reload_chunk(
 
 }
 
+pub struct SetBlockTypeEvent(usize, Vector3Int, BlockType);
+
+pub fn spawn_random_blocks(
+    input: Res<Input<KeyCode>>,
+    state: Res<ChunkState>,
+    mut writer: EventWriter<SetBlockTypeEvent>,
+) {
+    if !input.just_pressed(KeyCode::I) { return }
+    for (&coords, _) in state.chunks.iter() {
+        writer.send(SetBlockTypeEvent((rand::random::<u32>() & 0x7FFF) as usize, coords, (rand::random::<u64>() % 8).try_into().unwrap()));
+    }
+}
+
+pub fn handle_set_block_type_events(
+    mut reader: EventReader<SetBlockTypeEvent>,
+    mut state: ResMut<ChunkState>,
+    mut commands: Commands,
+) {
+    let mut changes = HashSet::<Vector3Int>::new();
+
+    for event in reader.iter() {
+        changes.insert_unique_unchecked(event.1);
+
+        if let Some(voxel) = state.get_voxel_by_index(event.1, event.0) {
+            
+            let updated = voxel_helpers::set_block_type(voxel, event.2);
+            state.set_voxel_by_index(event.1, event.0, updated);
+        }
+    }
+
+    for coords in changes {
+        if let Some(chunk_data) = state.chunks.get_mut(&coords) {
+            if let Some(entity) = chunk_data.entity {
+                commands.entity(entity).insert(NeedsRender);
+            }
+        }
+    }
+}
 
 pub fn queue_new_chunks(
     mut state: ResMut<ChunkState>,
@@ -295,8 +343,8 @@ pub fn generator(
     for (entity, chunk) in query.iter_mut() {
         let mut new_chunk_data = ChunkData { 
             voxels: chunks::get_height_map(Vector3{x: chunk.coords.x as f64, y: chunk.coords.y as f64, z: chunk.coords.z as f64}, config.clone()),
-            entity: entity.clone(),
-            has_generated_structures: false,
+            entity: Some(entity.clone()),
+            ..default()
         };
 
         run_first_pass_meshing(&mut new_chunk_data.voxels);
@@ -425,6 +473,167 @@ pub fn spawn_new_chunk(commands: &mut Commands, coords: Vector3Int) {
         Generate,
         GenerateFaces,
     ));
+}
 
+#[derive(Default)]
+pub struct FluidUpdateResult {
+    pub updates: Vec<(Vector3Int, VoxelCoords, u8)>,
+}
+
+pub fn update_initial_fluids(voxels: &Vec<Voxel>) -> HashMap<u64, u8> {
+    let mut fluid_map = HashMap::<u64, u8>::new();
+    for i in 0..voxels.len() {
+        let voxel = voxels[i];
+        if voxel_helpers::get_block_type(voxel) == BlockType::Water as u64 {
+            fluid_map.insert_unique_unchecked(i as u64, 8);
+        }
+    }
+
+    fluid_map
+}
+
+pub fn fluid_update_system(
+    mut fluid_event: EventWriter<FluidUpdateEvent>,
+    query: Query<(Entity, &Chunk)>,
+    chunk_state: Res<ChunkState>
+) {
+    for (e, chunk) in query.iter() {
+        update_fluids(chunk.coords, &chunk_state, &mut fluid_event)
+    }
+}
+
+pub fn fluid_update_event_processor(
+    mut fluid_events: EventReader<FluidUpdateEvent>,
+    mut chunk_state: ResMut<ChunkState>,
+    mut commands: Commands,
+) {
+    let mut update_map = HashSet::<(Entity, Vector3Int)>::new();
+
+    for event in fluid_events.iter() {
+        if let Some(chunk_data) = chunk_state.chunks.get_mut(&event.0) {
+            let index = voxel_helpers::get_index_from_coords(event.1);
+            let mut voxel = chunk_data.voxels[index];
+
+            // TODO: Safety check to see if it isn't filled since the fluid event?
+
+            voxel = voxel_helpers::set_block_type(voxel, BlockType::Water);
+            chunk_data.voxels[index] = voxel;
+            chunk_data.flowing_fluids.insert_unique_unchecked(index, event.2);
+
+            if let Some(entity) = chunk_data.entity {
+                update_map.insert_unique_unchecked((entity, event.0));
+            }
+        }
+    }
+
+    for (entity, coords) in update_map {
+
+        if let Some(chunk_data) = chunk_state.chunks.get_mut(&coords) {
+            chunk_data.flowing_fluids.clear();
+        }
+
+        commands.entity(entity).insert(NeedsRender);
+    }
+}
+
+// pub struct NeedsRenderEvent
+pub struct FluidUpdateEvent(Vector3Int, VoxelCoords, u8);
+
+pub fn update_fluids(chunk_coords: Vector3Int, chunk_state: &ChunkState, writer: &mut EventWriter<FluidUpdateEvent>) {
+
+    match chunk_state.chunks.get(&chunk_coords) {
+        Some(state) => {
+            let mut target_coords;
+            let mut target_chunk = chunk_coords;
+            let mut check_vec = vec!();
+
+            for (index, rate) in &state.flowing_fluids {
+                if rate > &0 {
+                    // check neighbors for voids and the push the update to results
+                    let coords = voxel_helpers::get_coords_as_voxel_coords(index.clone() as u64);
+                    target_coords = coords;
+                    if coords.y > 0 {
+                        target_coords.y -= 1;
+
+                        if let Some(voxel) = chunk_state.get_voxel(target_chunk, target_coords) {
+                            if !voxel_helpers::is_filled(voxel) {
+                                writer.send(FluidUpdateEvent(target_chunk, target_coords, rate - 1));
+                                continue
+                            }
+                        }
+                    }
+
+                    target_chunk = chunk_coords;
+                    target_coords = coords;
+
+                    // backward
+                    if coords.x == 0 {
+                        target_coords.x = 15;
+                        target_chunk = chunk_coords + VECTOR3_INT_BACKWARD;
+                        check_vec.push((target_chunk, target_coords));
+                    } else {
+                        target_coords.x -= 1;
+                        check_vec.push((target_chunk, target_coords));
+                    }
+
+                    target_chunk = chunk_coords;
+                    target_coords = coords;
+                    //forward
+                    if coords.x == 15 {
+                        target_coords.x = 0;
+                        target_chunk = chunk_coords + VECTOR3_INT_FORWARD;
+                        check_vec.push((target_chunk, target_coords));
+                    } else {
+                        target_coords.x += 1;
+                        check_vec.push((target_chunk, target_coords));
+                    }
+
+                    target_chunk = chunk_coords;
+                    target_coords = coords;
+                    // left
+                    if coords.z == 0 {
+                        target_coords.z = 15;
+                        target_chunk = chunk_coords + VECTOR3_INT_LEFT;
+                        check_vec.push((target_chunk, target_coords));
+                    } else {
+                        target_coords.z -= 1;
+                        check_vec.push((target_chunk, target_coords));
+                    }
+
+                    target_chunk = chunk_coords;
+                    target_coords = coords;
+
+                    //right
+                    if coords.z == 15 {
+                        target_coords.z = 0;
+                        target_chunk = chunk_coords + VECTOR3_INT_RIGHT;
+                        check_vec.push((target_chunk, target_coords));
+                    } else {
+                        target_coords.z += 1;
+                        check_vec.push((target_chunk, target_coords));
+                    }
+                    
+
+                    //iterate and check
+                    for i in 0..check_vec.len() {
+                        let (target_chunk, target_coords) = check_vec[i] ;
+
+                        if let Some(voxel) = chunk_state.get_voxel(target_chunk, target_coords) {
+                            if !voxel_helpers::is_filled(voxel) {
+                                writer.send(FluidUpdateEvent(target_chunk, target_coords, rate - 1));
+                            }
+
+                        }
+
+                    }
+
+                }
+
+                check_vec.clear();
+
+            }
+        },
+        None => ()
+    }
 }
 

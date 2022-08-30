@@ -6,34 +6,6 @@ use bevy::prelude::{Component, FromWorld };
 
 pub type UVArray = [[f32;2];4];
 
-pub enum BlockType {
-	Water,
-	Stone,
-	Grass,
-	Dirt,
-	Snow,
-	Sand,
-	Ice,
-	DarkStone,
-}
-
-impl TryFrom<u64> for BlockType {
-    type Error = ();
-
-    fn try_from(value: u64) -> Result<Self, Self::Error> {
-		  match value {
-			v if v == BlockType::Water as u64 => Ok(BlockType::Water),
-			v if v == BlockType::Stone as u64 => Ok(BlockType::Stone),
-			v if v == BlockType::Grass as u64 => Ok(BlockType::Grass),
-			v if v == BlockType::Dirt as u64 => Ok(BlockType::Dirt),
-			v if v == BlockType::Snow as u64 => Ok(BlockType::Snow),
-			v if v == BlockType::Sand as u64 => Ok(BlockType::Sand),
-			v if v == BlockType::Ice as u64 => Ok(BlockType::Ice),
-			v if v == BlockType::DarkStone as u64 => Ok(BlockType::DarkStone),
-			_ => Err(())
-		  }
-    }
-}
 pub fn get_uvs_for_block(uvs: & mut UVArray, block_type: BlockType) {
 	let grid_size = [4.0, 4.0];
 	match block_type {

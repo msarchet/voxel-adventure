@@ -15,7 +15,7 @@ pub mod voxel_helpers {
     #[allow(dead_code)]
     const BLOCK_TYPE_LENGTH: u64 = 16u64;
 
-    use crate::{common::types::*, meshing::chunk::BlockType};
+    use crate::{common::types::*};
 
     pub fn get_coords_as_voxel_coords(v: Voxel) -> VoxelCoords {
         VoxelCoords {

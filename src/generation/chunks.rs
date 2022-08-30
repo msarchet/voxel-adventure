@@ -2,7 +2,6 @@ use crate::ConfigurationState;
 use crate::common::types::*;
 use crate::common::voxels::voxel_helpers;
 use crate::generation::noise::*;
-use crate::meshing::chunk::BlockType;
 use noise::*;
 
 

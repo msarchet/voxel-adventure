@@ -1,6 +1,6 @@
 use std::ops::{Add, Sub};
 
-use bevy::prelude::Entity;
+use bevy::{prelude::Entity, utils::HashMap};
 
 pub type Voxel = u64;
 
@@ -78,8 +78,20 @@ impl Sub for Vector3 {
 
 pub struct ChunkData {
     pub voxels: Vec<Voxel>,
-    pub entity: Entity,
+    pub entity: Option<Entity>,
     pub has_generated_structures: bool,
+    pub flowing_fluids: HashMap<usize, u8>,
+}
+
+impl Default for ChunkData {
+    fn default() -> Self {
+        Self { 
+            voxels: vec!(), 
+            entity: None, 
+            has_generated_structures: false, 
+            flowing_fluids: HashMap::<usize, u8>::new()
+        }
+    }
 }
 
 
@@ -90,6 +102,15 @@ pub static VECTOR3LEFT: Vector3 = Vector3 {x: 0.0, y: 0.0, z:1.0};
 pub static VECTOR3RIGHT: Vector3 = Vector3 {x: 0.0, y: 0.0, z:-1.0};
 pub static VECTOR3FORWARD: Vector3 = Vector3 {x: 1.0, y: 0.0, z:0.0};
 pub static VECTOR3BACKWARD: Vector3 = Vector3 {x: -1.0, y: 0.0, z:0.0};
+
+pub static VECTOR3_INT_ZERO: Vector3Int = Vector3Int {x: 0, y: 0, z:0};
+pub static VECTOR3_INT_UP: Vector3Int = Vector3Int {x: 0, y: 1, z:0};
+pub static VECTOR3_INT_DOWN: Vector3Int = Vector3Int {x: 0, y: -1, z:0};
+pub static VECTOR3_INT_LEFT: Vector3Int = Vector3Int {x: 0, y: 0, z:1};
+pub static VECTOR3_INT_RIGHT: Vector3Int = Vector3Int {x: 0, y: 0, z:-1};
+pub static VECTOR3_INT_FORWARD: Vector3Int = Vector3Int {x: 1, y: 0, z:0};
+pub static VECTOR3_INT_BACKWARD: Vector3Int = Vector3Int {x: -1, y: 0, z:0};
+
 
 pub const UP_FACE:              u64 = 0b1;
 pub const DOWN_FACE:            u64 = 0b10;
@@ -105,3 +126,33 @@ pub const NOT_RIGHT_FACE:       u64 =  !RIGHT_FACE;
 pub const NOT_FORWARD_FACE:     u64 =  !FORWARD_FACE;
 pub const NOT_BACKWARD_FACE:    u64 =  !BACKWARD_FACE;
 
+#[derive(Copy, Clone)]
+pub enum BlockType {
+	Water,
+	Stone,
+	Grass,
+	Dirt,
+	Snow,
+	Sand,
+	Ice,
+	DarkStone,
+}
+
+
+impl TryFrom<u64> for BlockType {
+    type Error = ();
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+		  match value {
+			v if v == BlockType::Water as u64 => Ok(BlockType::Water),
+			v if v == BlockType::Stone as u64 => Ok(BlockType::Stone),
+			v if v == BlockType::Grass as u64 => Ok(BlockType::Grass),
+			v if v == BlockType::Dirt as u64 => Ok(BlockType::Dirt),
+			v if v == BlockType::Snow as u64 => Ok(BlockType::Snow),
+			v if v == BlockType::Sand as u64 => Ok(BlockType::Sand),
+			v if v == BlockType::Ice as u64 => Ok(BlockType::Ice),
+			v if v == BlockType::DarkStone as u64 => Ok(BlockType::DarkStone),
+			_ => Err(())
+		  }
+    }
+}
