@@ -13,8 +13,10 @@ fn interpolate (range : (f64,f64), value: f64) -> f64 {
 }
 
 pub fn get_height_map(coords: Vector3, config: ConfigurationState) -> Vec<Voxel> {
+	// TODO: pool and create a resource for the noise gen
 	let mut voxels: Vec<Voxel> = vec![0;16*16*128];
     let height_map_gen = OpenSimplex::new();
+
 	let mut y0: f64;
 	let mut _blob_noise: f64;
 	let mut block_variant_noise: f64;

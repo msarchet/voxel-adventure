@@ -247,7 +247,7 @@ pub fn handle_set_block_type_events(
         changes.insert_unique_unchecked(event.1);
 
         if let Some(voxel) = state.get_voxel_by_index(event.1, event.0) {
-            
+            println!("inserting voxel {:?},{}", event.1, event.0);
             let updated = voxel_helpers::set_block_type(voxel, event.2);
             state.set_voxel_by_index(event.1, event.0, updated);
         }

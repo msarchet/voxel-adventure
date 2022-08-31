@@ -2,9 +2,11 @@ use std::ops::{Add, Sub};
 
 use bevy::{prelude::Entity, utils::HashMap};
 
+use super::voxels::voxel_helpers;
+
 pub type Voxel = u64;
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Default)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Default, Debug)]
 pub struct Vector3Int {
     pub x: i64,
     pub y: i64,
@@ -17,6 +19,14 @@ pub struct VoxelCoords {
 	pub x: u16,
 	pub y: u16,
 	pub z: u16
+}
+
+impl TryFrom<VoxelCoords> for usize {
+    type Error = ();
+
+    fn try_from(value: VoxelCoords) -> Result<Self, Self::Error> {
+        Ok(voxel_helpers::get_index_from_coords(value))
+    }
 }
 
 #[derive(Copy, Clone, Default)]
