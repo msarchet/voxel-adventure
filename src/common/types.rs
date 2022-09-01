@@ -5,6 +5,13 @@ use bevy::{prelude::Entity, utils::HashMap};
 use super::voxels::voxel_helpers;
 
 pub type Voxel = u64;
+pub type VoxelCollection = Vec<Voxel>;
+
+pub const CHUNK_DIMENSIONS : Vector3Int = Vector3Int {x: 16, y: 128, z:16};
+
+pub const COORDINATE_SHIFTS: (u16, u16, u16) = (0, 8, 4);
+
+pub const COORDINATE_MASKS: (u16, u16, u16) = (0xF, 0xFF, 0xF);
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Default, Debug)]
 pub struct Vector3Int {

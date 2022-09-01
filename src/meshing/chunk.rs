@@ -1,4 +1,8 @@
-use crate::common::types::*;
+use crate::{common::types::*,
+	common::types::BlockType,
+	systems::chunk_systems::ChunkState,
+	systems::chunk_systems::ChunkLookup
+};
 use crate::common::voxels::voxel_helpers;
 use crate::meshing::cubemeshes::*;
 
@@ -76,29 +80,22 @@ fn get_voxel_edges() -> [Vec<(usize, usize)>;4] {
 	voxels
 }
 
-pub fn get_mesh_data(chunk_data: &ChunkData, cube_data: &CubeMeshData) -> MeshData {
+pub fn get_mesh_data(face_data: &Vec<(usize, u8, BlockType)>, cube_data: &CubeMeshData) -> MeshData {
 	let mut mesh_data = get_mesh_data_container();
 
-	let mut voxel;
-	let mut mesh_key;
 	let mut faces_res;
 	let mut coords;
 	let mut vertex_index;
 	let mut adjusted: [f32;3] = [0.0, 0.0, 0.0];
 	let mut uvs :UVArray = [[0.0, 0.0];4];
-	let mut block_type;
-	for i in 0..chunk_data.voxels.len() {
-		voxel = chunk_data.voxels[i];
-		if !voxel_helpers::is_filled(voxel) { continue; }
-		mesh_key = voxel_helpers::get_mesh_data(voxel);
-		block_type = voxel_helpers::get_block_type(voxel);
-		get_uvs_for_block(&mut uvs, block_type.try_into().unwrap());
+	for (index, key, block_type) in face_data {
+		get_uvs_for_block(&mut uvs, block_type.clone().try_into().unwrap());
 
-		faces_res = cube_data.cubes.get(&mesh_key);
+		faces_res = cube_data.cubes.get(key);
 		match faces_res {
 			Some(faces) => {
 				// TODO: Improve perf here
-				coords = voxel_helpers::get_coords_as_vec3(voxel);
+				coords = voxel_helpers::get_coords_as_vec3(*index as Voxel);
 				vertex_index = mesh_data.verticies.len() as u32;
 
 				for i in 0..faces.vertex_count as usize {
@@ -113,14 +110,15 @@ pub fn get_mesh_data(chunk_data: &ChunkData, cube_data: &CubeMeshData) -> MeshDa
 				for i in 0..faces.normals.len() { mesh_data.normals.push(faces.normals[i]); }
 				for i in 0..faces.indicies.len() { mesh_data.indicies.push(faces.indicies[i] + vertex_index); }
 			},
-			None => panic!("invalid mesh face {}", mesh_key),
+			None => panic!("invalid mesh face {}", key),
 		}
+
 	}
 
-	return mesh_data;
+	mesh_data
 }
 
-pub fn run_first_pass_meshing(voxels: &mut Vec<Voxel>) {
+pub fn run_first_pass_meshing(voxels: &mut VoxelCollection) {
 	for index in 0..voxels.len() {
 			let voxel = voxels[index];
 
@@ -190,8 +188,9 @@ pub fn run_first_pass_meshing(voxels: &mut Vec<Voxel>) {
 
 
 
-pub fn update_edge_meshes(our_voxels: &mut Vec<Voxel>,
-	their_voxels: &Vec<Voxel>,
+pub fn update_edge_meshes(
+	our_voxels: &mut VoxelCollection,
+	their_voxels: &VoxelCollection,
 	edge_lookup_pairs: &Vec<(usize, usize)>,
 	our_face: u64,
 	not_our_face: u64,
@@ -210,4 +209,99 @@ pub fn update_edge_meshes(our_voxels: &mut Vec<Voxel>,
 			our_voxels[ours_index.clone()] = voxel_helpers::set_mesh_data(ours, our_mesh_data & not_our_face);
 		}
 	}	
+}
+
+fn get_chunk_and_coords(x: i16, y: i16, z: i16) -> (Vector3Int, usize) {
+	let mut direction = VECTOR3_INT_ZERO;
+	let mut results = (x as u16, y as u16, z as u16);
+	if x < 0 {
+		direction = direction + VECTOR3_INT_BACKWARD;
+		results.0 = (CHUNK_DIMENSIONS.x - 1) as u16;
+	} else if x == CHUNK_DIMENSIONS.x as i16 {
+		direction = direction + VECTOR3_INT_FORWARD;
+		results.0 = 0;
+	}
+	if y < 0 {
+		direction = direction + VECTOR3_INT_DOWN;
+		results.1 = (CHUNK_DIMENSIONS.y - 1) as u16;
+	} else if y == CHUNK_DIMENSIONS.y as i16 {
+		direction = direction + VECTOR3_INT_UP;
+		results.1 = 0;
+	}
+
+	if z < 0 {
+		direction = direction + VECTOR3_INT_RIGHT;
+		results.2 = (CHUNK_DIMENSIONS.z - 1) as u16;
+	} else if z == CHUNK_DIMENSIONS.z as i16 {
+		direction = direction + VECTOR3_INT_LEFT;
+		results.2 = 0;
+	}
+
+	(direction, voxel_helpers::get_index(results.0, results.1, results.2))
+}
+// TODO: Generate All Mesh Data Points At Once
+pub fn generate_mesh_raw_data(
+	chunk_coords: Vector3Int,
+	state: &ChunkState,
+) -> Vec<(usize, u8, BlockType)> {
+	let mut results = vec!();
+
+	if let Some(our_chunk) = state.chunks.get(&chunk_coords) {
+		let our_voxels = &our_chunk.voxels;
+		for index in 0..our_voxels.len() {
+
+				if !voxel_helpers::is_filled(our_voxels[index])
+				{
+					continue;
+				}
+
+				let mut key = 0u64;
+
+				let voxel = our_voxels[index];
+
+				let coords = voxel_helpers::get_coords_as_voxel_coords(voxel);
+				let x = coords.x as i16;
+				let y = coords.y as i16;
+				let z = coords.z as i16;
+
+
+				let up_voxel_info = get_chunk_and_coords(x, y +1, z);
+				let down_voxel_info = get_chunk_and_coords(x, y - 1, z);
+				let left_voxel_info = get_chunk_and_coords(x, y, z + 1);
+				let right_voxel_info = get_chunk_and_coords(x, y, z - 1);
+				let forward_voxel_info = get_chunk_and_coords(x + 1, y, z);
+				let backward_voxel_info = get_chunk_and_coords(x - 1, y, z);
+
+				if let Some(up_voxel) = state.get_voxel_by_index(chunk_coords + up_voxel_info.0, up_voxel_info.1) {
+					if voxel_helpers::should_create_face(voxel, up_voxel) { key |= 0b1; }
+				}
+
+				if let Some(down_voxel) = state.get_voxel_by_index(chunk_coords + down_voxel_info.0, down_voxel_info.1) {
+					if voxel_helpers::should_create_face(voxel, down_voxel) { key |= 0b10; }
+				}
+
+				if let Some(left_voxel) = state.get_voxel_by_index(chunk_coords + left_voxel_info.0, left_voxel_info.1) {
+					if voxel_helpers::should_create_face(voxel, left_voxel) { key |= 0b100; }
+				}
+
+				if let Some(right_voxel) = state.get_voxel_by_index(chunk_coords + right_voxel_info.0, right_voxel_info.1) {
+					if voxel_helpers::should_create_face(voxel, right_voxel) { key |= 0b1000; }
+				}
+
+				if let Some(forward_voxel) = state.get_voxel_by_index(chunk_coords + forward_voxel_info.0, forward_voxel_info.1) {
+					if voxel_helpers::should_create_face(voxel, forward_voxel) { key |= 0b10000; }
+				}
+
+				if let Some(backward_voxel) = state.get_voxel_by_index(chunk_coords + backward_voxel_info.0, backward_voxel_info.1) {
+					if voxel_helpers::should_create_face(voxel, backward_voxel) { key |= 0b100000; }
+				}
+
+				if key != 0 {
+					results.push((index, (key & 0xFF) as u8, voxel_helpers::get_block_type(voxel).try_into().unwrap()));
+				}
+		}
+
+	}
+
+	results
 }

@@ -17,19 +17,20 @@ pub mod voxel_helpers {
 
     use crate::{common::types::*};
 
+    // TODO: Convert these into proper into/from methods
     pub fn get_coords_as_voxel_coords(v: Voxel) -> VoxelCoords {
         VoxelCoords {
-            x: (v & 0b1111) as u16,
-            y: ((v >> 8) & 0xFF) as u16,
-            z: ((v >> 4) & 0b1111) as u16,
+            x: ((v >> COORDINATE_SHIFTS.0) as u16 & COORDINATE_MASKS.0) as u16,
+            y: ((v >> COORDINATE_SHIFTS.1) as u16 & COORDINATE_MASKS.1) as u16,
+            z: ((v >> COORDINATE_SHIFTS.2) as u16 & COORDINATE_MASKS.2) as u16,
         }
     }
 
     pub fn get_coords_as_vec3(v: Voxel) -> Vector3 {
         Vector3 {
-            x: (v & 0b1111) as f64,
-            y: ((v >> 8) & 0xFF) as f64,
-            z: ((v >> 4) & 0b1111) as f64,
+            x: ((v >> COORDINATE_SHIFTS.0) as u16 & COORDINATE_MASKS.0) as f64,
+            y: ((v >> COORDINATE_SHIFTS.1) as u16 & COORDINATE_MASKS.1) as f64,
+            z: ((v >> COORDINATE_SHIFTS.2) as u16 & COORDINATE_MASKS.2) as f64,
         }
     }
 

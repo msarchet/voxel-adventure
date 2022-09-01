@@ -22,7 +22,7 @@ pub fn get_mesh_data_container() -> MeshData {
 }
 
 pub struct CubeMeshData {
-	pub cubes: HashMap<u64, MeshData>,
+	pub cubes: HashMap<u8, MeshData>,
 }
 
 const UP_INDEX: u8 = 0;
@@ -48,7 +48,7 @@ static H: [f32;3] = [ 1.0,  1.0, 0.0 ];
 //static Forward : [u32;4] = [3, 7, 2, 6 ];
 //static Backward : [u32;4] = [0, 1, 4, 5 ];
 
-fn get_mesh_for_face(face_key: u64) -> MeshData {
+fn get_mesh_for_face(face_key: u8) -> MeshData {
 	let mut vertex_count  = 0;
 	let mut verticies = Vec::<[f32;3]>::new();
 	let mut normals = Vec::<[f32;3]>::new();
@@ -180,7 +180,7 @@ fn get_mesh_for_face(face_key: u64) -> MeshData {
 
 impl FromWorld for CubeMeshData {
 	fn from_world(_world: &mut World) -> Self {
-		let mut cubes = HashMap::<u64, MeshData>::new();
+		let mut cubes = HashMap::<u8, MeshData>::new();
 		for up in 0..2 {
 			for down in 0..2 {
 				for left in 0..2 {
@@ -195,8 +195,8 @@ impl FromWorld for CubeMeshData {
 								key |= forward << FORWARD_INDEX; 
 								key |= backward << BACKWARD_INDEX; 
 
-								let mesh = get_mesh_for_face(key as u64);
-								cubes.insert(key as u64, mesh);
+								let mesh = get_mesh_for_face(key);
+								cubes.insert(key, mesh);
 							}
 						}
 					}
