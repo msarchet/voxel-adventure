@@ -143,7 +143,7 @@ pub const NOT_RIGHT_FACE:       u64 =  !RIGHT_FACE;
 pub const NOT_FORWARD_FACE:     u64 =  !FORWARD_FACE;
 pub const NOT_BACKWARD_FACE:    u64 =  !BACKWARD_FACE;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum BlockType {
 	Water,
 	Stone,

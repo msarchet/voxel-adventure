@@ -232,16 +232,23 @@ pub fn reload_chunk(
 
 }
 
-pub struct SetBlockTypeEvent(usize, Vector3Int, BlockType);
+pub struct SetBlockTypeEvent {
+    index: usize,
+    chunk_coords: Vector3Int,
+    block_type: BlockType,
+    flow_rate: u8,
+    replace: bool,
+}
 
 pub fn spawn_random_blocks(
     input: Res<Input<KeyCode>>,
     state: Res<ChunkState>,
-    mut writer: EventWriter<SetBlockTypeEvent>,
+    mut writer: EventWriter<FluidUpdateEvent>,
 ) {
     if !input.just_pressed(KeyCode::I) { return }
     for (&coords, _) in state.chunks.iter() {
-        writer.send(SetBlockTypeEvent((rand::random::<u32>() & 0x7FFF) as usize, coords, (rand::random::<u64>() % 8).try_into().unwrap()));
+        if coords.x % 2 == 0 && coords.z % 2 == 0 { continue }
+        writer.send(FluidUpdateEvent(coords, VoxelCoords {x: 6, y : 100, z: 6}, 8));
     }
 }
 
@@ -253,13 +260,21 @@ pub fn handle_set_block_type_events(
     let mut changes = HashSet::<Vector3Int>::new();
 
     for event in reader.iter() {
-        changes.insert_unique_unchecked(event.1);
 
-        if let Some(voxel) = state.get_voxel_by_index(event.1, event.0) {
-            println!("inserting voxel {:?},{}", event.1, event.0);
-            let mut updated = voxel_helpers::set_block_type(voxel, event.2);
+        if let Some(voxel) = state.get_voxel_by_index(event.chunk_coords, event.index) {
+            if event.replace == false && voxel_helpers::is_filled(voxel) {
+                continue 
+            }
+
+            let mut updated = voxel_helpers::set_block_type(voxel, event.block_type);
+            if event.block_type == BlockType::Water {
+                if let Some(chunk_data) = state.chunks.get_mut(&event.chunk_coords) {
+                    chunk_data.flowing_fluids.insert_unique_unchecked(event.index, event.flow_rate);
+                }
+            }
             updated = voxel_helpers::set_filled(updated, true);
-            state.set_voxel_by_index(event.1, event.0, updated);
+            state.set_voxel_by_index(event.chunk_coords, event.index, updated);
+            changes.insert_unique_unchecked(event.chunk_coords);
         }
     }
 
@@ -351,12 +366,13 @@ pub fn generator(
     mut query: Query<(Entity, &Chunk), With<Generate>>,
 ) {
     for (entity, chunk) in query.iter_mut() {
-        let new_chunk_data = ChunkData { 
+        let mut new_chunk_data = ChunkData { 
             voxels: chunks::get_height_map(Vector3{x: chunk.coords.x as f64, y: chunk.coords.y as f64, z: chunk.coords.z as f64}, config.clone()),
             entity: Some(entity.clone()),
             ..default()
         };
-
+        let fluid_map = update_initial_fluids(&new_chunk_data.voxels);
+        new_chunk_data.flowing_fluids = fluid_map;
         state.chunks.insert_unique_unchecked(chunk.coords, new_chunk_data);
         commands.entity(entity).remove::<Generate>();
     }
@@ -467,12 +483,12 @@ pub struct FluidUpdateResult {
     pub updates: Vec<(Vector3Int, VoxelCoords, u8)>,
 }
 
-pub fn update_initial_fluids(voxels: &VoxelCollection) -> HashMap<u64, u8> {
-    let mut fluid_map = HashMap::<u64, u8>::new();
+pub fn update_initial_fluids(voxels: &VoxelCollection) -> HashMap<usize, u8> {
+    let mut fluid_map = HashMap::<usize, u8>::new();
     for i in 0..voxels.len() {
         let voxel = voxels[i];
         if voxel_helpers::get_block_type(voxel) == BlockType::Water as u64 {
-            fluid_map.insert_unique_unchecked(i as u64, 8);
+            fluid_map.insert_unique_unchecked(i, 0);
         }
     }
 
@@ -482,51 +498,33 @@ pub fn update_initial_fluids(voxels: &VoxelCollection) -> HashMap<u64, u8> {
 pub fn fluid_update_system(
     mut fluid_event: EventWriter<FluidUpdateEvent>,
     query: Query<(Entity, &Chunk)>,
-    chunk_state: Res<ChunkState>
+    mut chunk_state: ResMut<ChunkState>,
 ) {
     for (_, chunk) in query.iter() {
-        update_fluids(chunk.coords, &chunk_state, &mut fluid_event)
+        update_fluids(chunk.coords, &mut chunk_state, &mut fluid_event)
     }
 }
 
 pub fn fluid_update_event_processor(
     mut fluid_events: EventReader<FluidUpdateEvent>,
-    mut chunk_state: ResMut<ChunkState>,
-    mut commands: Commands,
+    mut set_block_writer: EventWriter<SetBlockTypeEvent>,
 ) {
-    let mut update_map = HashSet::<(Entity, Vector3Int)>::new();
-
     for event in fluid_events.iter() {
-        if let Some(chunk_data) = chunk_state.chunks.get_mut(&event.0) {
-            let index = voxel_helpers::get_index_from_coords(event.1);
-            let mut voxel = chunk_data.voxels[index];
-
-            // TODO: Safety check to see if it isn't filled since the fluid event?
-
-            voxel = voxel_helpers::set_block_type(voxel, BlockType::Water);
-            chunk_data.voxels[index] = voxel;
-            chunk_data.flowing_fluids.insert_unique_unchecked(index, event.2);
-
-            if let Some(entity) = chunk_data.entity {
-                update_map.insert_unique_unchecked((entity, event.0));
-            }
-        }
-    }
-
-    for (entity, coords) in update_map {
-
-        if let Some(chunk_data) = chunk_state.chunks.get_mut(&coords) {
-            chunk_data.flowing_fluids.clear();
-        }
-
-        commands.entity(entity).insert(NeedsRender);
+        let index = voxel_helpers::get_index_from_coords(event.1);
+        set_block_writer.send(SetBlockTypeEvent{
+            index, 
+            chunk_coords: event.0,
+            block_type: BlockType::Water,
+            flow_rate: event.2, 
+            replace: false
+        });
     }
 }
 
 // pub struct NeedsRenderEvent
 pub struct FluidUpdateEvent(Vector3Int, VoxelCoords, u8);
 
-pub fn update_fluids(chunk_coords: Vector3Int, chunk_state: &ChunkState, writer: &mut EventWriter<FluidUpdateEvent>) {
+pub fn update_fluids(chunk_coords: Vector3Int, chunk_state: &mut ChunkState, writer: &mut EventWriter<FluidUpdateEvent>) {
 
     match chunk_state.chunks.get(&chunk_coords) {
         Some(state) => {
@@ -543,9 +541,13 @@ pub fn update_fluids(chunk_coords: Vector3Int, chunk_state: &ChunkState, writer:
                         target_coords.y -= 1;
 
                         if let Some(voxel) = chunk_state.get_voxel(target_chunk, target_coords) {
-                            if !voxel_helpers::is_filled(voxel) {
-                                writer.send(FluidUpdateEvent(target_chunk, target_coords, rate - 1));
+                            if !voxel_helpers::is_filled(voxel.clone()) {
+                                writer.send(FluidUpdateEvent(target_chunk, target_coords, 8));
                                 continue
+                            }
+
+                            if voxel_helpers::get_block_type(voxel.clone()) == BlockType::Water as u64 {
+                                continue  
                             }
                         }
                     }
@@ -557,11 +559,10 @@ pub fn update_fluids(chunk_coords: Vector3Int, chunk_state: &ChunkState, writer:
                     if coords.x == 0 {
                         target_coords.x = 15;
                         target_chunk = chunk_coords + VECTOR3_INT_BACKWARD;
-                        check_vec.push((target_chunk, target_coords));
                     } else {
                         target_coords.x -= 1;
-                        check_vec.push((target_chunk, target_coords));
                     }
+                    check_vec.push((target_chunk, target_coords));
 
                     target_chunk = chunk_coords;
                     target_coords = coords;
@@ -569,36 +570,34 @@ pub fn update_fluids(chunk_coords: Vector3Int, chunk_state: &ChunkState, writer:
                     if coords.x == 15 {
                         target_coords.x = 0;
                         target_chunk = chunk_coords + VECTOR3_INT_FORWARD;
-                        check_vec.push((target_chunk, target_coords));
                     } else {
                         target_coords.x += 1;
-                        check_vec.push((target_chunk, target_coords));
                     }
 
+                    check_vec.push((target_chunk, target_coords));
                     target_chunk = chunk_coords;
                     target_coords = coords;
                     // left
                     if coords.z == 0 {
                         target_coords.z = 15;
-                        target_chunk = chunk_coords + VECTOR3_INT_LEFT;
-                        check_vec.push((target_chunk, target_coords));
+                        target_chunk = chunk_coords + VECTOR3_INT_RIGHT;
                     } else {
                         target_coords.z -= 1;
-                        check_vec.push((target_chunk, target_coords));
                     }
 
+                    check_vec.push((target_chunk, target_coords));
                     target_chunk = chunk_coords;
                     target_coords = coords;
 
                     //right
                     if coords.z == 15 {
                         target_coords.z = 0;
-                        target_chunk = chunk_coords + VECTOR3_INT_RIGHT;
-                        check_vec.push((target_chunk, target_coords));
+                        target_chunk = chunk_coords + VECTOR3_INT_LEFT;
                     } else {
                         target_coords.z += 1;
-                        check_vec.push((target_chunk, target_coords));
                     }
+
+                    check_vec.push((target_chunk, target_coords));
                     
 
                     //iterate and check
@@ -619,8 +618,14 @@ pub fn update_fluids(chunk_coords: Vector3Int, chunk_state: &ChunkState, writer:
                 check_vec.clear();
 
             }
+
+            if let Some(state) = chunk_state.chunks.get_mut(&chunk_coords) {
+                state.flowing_fluids.clear();
+            }
+
         },
         None => ()
     }
+
 }
 
