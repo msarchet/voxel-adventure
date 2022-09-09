@@ -5,10 +5,7 @@ use bevy::prelude::*;
 use bevy::render::camera::Projection;
 use bevy_egui::EguiPlugin;
 
-use bevy_inspector_egui::InspectorPlugin;
-use meshing::cubemeshes::CubeMeshData;
 use crate::common::types::*;
-use crate::meshing::chunk::*;
 use crate::systems::chunk_systems::*;
 
 pub mod common;
@@ -26,68 +23,22 @@ pub struct MaterialCache {
 }
 
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone, StageLabel)]
-enum CustomStages{
-    Cleanup,
-}
 
 fn main() {
     App::new()
     	.add_plugins(DefaultPlugins)
     	.add_plugin(EguiPlugin)
-        .add_event::<SetBlockTypeEvent>()
-        .add_event::<FluidUpdateEvent>()
+        .add_plugin(ChunkPlugin)
         .add_startup_system(setup)
-        .add_system(queue_new_chunks)
-        .add_system(generator.after(queue_new_chunks))
-        .add_system(generate_full_edge_meshes.after(generator))
-        .add_system(spawn_random_blocks.after(generate_full_edge_meshes))
-        .add_system(fluid_update_system.after(generate_full_edge_meshes))
-        .add_system(fluid_update_event_processor.after(fluid_update_system))
-        .add_system(handle_set_block_type_events.after(fluid_update_event_processor))
-        .add_system(render_chunk.after(generate_full_edge_meshes))
-        .add_system(movement.after(generator))
+        .add_system(movement)
         .add_system(pan_orbit_camera.after(movement))
-        .add_system(reload_chunk.after(pan_orbit_camera))
-        .add_stage_after(CoreStage::Last, CustomStages::Cleanup, SystemStage::parallel())
-        .add_system_to_stage(CustomStages::Cleanup, manage_loaded_chunk)
-        .init_resource::<CubeMeshData>()
-        .init_resource::<ConfigurationState>()
-        .init_resource::<VoxelFaceEdges>()
-        .init_resource::<ChunkState>()
-        .init_resource::<MaterialCache>()
-        .add_plugin(InspectorPlugin::<ConfigurationState>::new())
         .run();
 }
 
 
 fn setup(
     mut commands: Commands,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut state: ResMut<ChunkState>,
-    mut material_cache: ResMut<MaterialCache>,
-    config: Res<ConfigurationState>,
-    asset_server: Res<AssetServer>,
 ) {
-    let texture_handle = asset_server.load("textures/simple_textures.png");
-
-    let chunk_material = materials.add(StandardMaterial {
-        metallic: 0.0,
-        reflectance: 0.0,
-        base_color_texture : Option::Some(texture_handle),
-        ..default()
-    });
-
-    material_cache.chunk_material = Some(chunk_material);
-
-    let center = state.center;
-
-    let loading_distance = config.loading_distance as i64;
-    for x in 0-loading_distance..loading_distance {
-        for z in 0-loading_distance..loading_distance {
-            state.chunks_load.push(Vector3Int { x: x, y: 0, z: z } + center);
-        }
-    }
 
     commands.spawn_bundle(DirectionalLightBundle {
         directional_light: DirectionalLight {
