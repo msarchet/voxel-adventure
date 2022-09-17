@@ -9,11 +9,16 @@ use crate::{
     meshing::{
         chunk::*,
         cubemeshes::CubeMeshData,
-    },
-    generation::chunks, MaterialCache
+    }, generation::chunks,
 };
 
 use bevy_inspector_egui::InspectorPlugin;
+
+// pub struct NeedsRenderEvent
+pub struct FluidUpdateEvent(pub Vector3Int, pub VoxelCoords, pub u8);
+
+// ChunkCoords, StructureData, Layer
+pub struct StructureDataGenerated(pub Vector3Int, pub Vec<StructureData>, pub u8);
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, StageLabel)]
 enum SystemStages {
@@ -49,6 +54,28 @@ impl Default for MeshReference {
     }
 }
 
+pub struct StructureData(u64);
+
+pub struct ChunkData {
+    pub voxels: Vec<Voxel>,
+    pub entity: Option<Entity>,
+    pub structure_data: Vec<StructureData>,
+    pub has_generated_structures: bool,
+    pub flowing_fluids: HashMap<usize, u8>,
+}
+
+impl Default for ChunkData {
+    fn default() -> Self {
+        Self { 
+            voxels: vec!(), 
+            structure_data: vec!(),
+            entity: None, 
+            has_generated_structures: false, 
+            flowing_fluids: HashMap::<usize, u8>::new()
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct ChunkState {
     pub chunks_load: Vec<Vector3Int>,
@@ -56,7 +83,15 @@ pub struct ChunkState {
     pub center: Vector3Int,
 }
 
+#[derive(Default)]
+pub struct MaterialCache {
+    chunk_material: Option<Handle<StandardMaterial>>,
+}
+
 pub struct ChunkPlugin;
+
+#[derive(Component)]
+pub struct GenerateStructure;
 
 impl Plugin for ChunkPlugin {
     fn build(&self, app: &mut App) {
@@ -66,7 +101,6 @@ impl Plugin for ChunkPlugin {
             .add_system(queue_new_chunks)
             .add_system(generator.after(queue_new_chunks))
             .add_system(generate_full_edge_meshes.after(generator))
-            .add_system(spawn_random_blocks.after(generate_full_edge_meshes))
             .add_system(fluid_update_system.after(generate_full_edge_meshes))
             .add_system(fluid_update_event_processor.after(fluid_update_system))
             .add_system(handle_set_block_type_events.after(fluid_update_event_processor))
@@ -83,36 +117,6 @@ impl Plugin for ChunkPlugin {
 
     }
 }
-
-fn setup(
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut state: ResMut<ChunkState>,
-    mut material_cache: ResMut<MaterialCache>,
-    config: Res<ConfigurationState>,
-    asset_server: Res<AssetServer>,
-) {
-
-    let texture_handle = asset_server.load("textures/simple_textures.png");
-
-    let chunk_material = materials.add(StandardMaterial {
-        metallic: 0.0,
-        reflectance: 0.0,
-        base_color_texture : Option::Some(texture_handle),
-        ..default()
-    });
-
-    material_cache.chunk_material = Some(chunk_material);
-
-    let center = state.center;
-
-    let loading_distance = config.loading_distance as i64;
-    for x in 0-loading_distance..loading_distance {
-        for z in 0-loading_distance..loading_distance {
-            state.chunks_load.push(Vector3Int { x: x, y: 0, z: z } + center);
-        }
-    }
-}
-
 
 pub trait ChunkLookup {
     fn get_voxel(&self, chunk_coords: Vector3Int, voxel_coords: VoxelCoords) -> Option<Voxel>;
@@ -177,6 +181,7 @@ pub struct NoiseConfiguration {
     #[inspectable(min = 0.00004, max = 1.0, speed=0.0001, wrapper=bigger_width)]
     pub freq: f64,
 }
+
 
 #[derive(Copy, Clone, Inspectable)]
 pub struct ConfigurationState {
@@ -264,36 +269,6 @@ fn bigger_width(ui: &mut egui::Ui, mut content: impl FnMut(&mut egui::Ui)) {
     });
 }
 
-
-
-pub fn reload_chunk(
-    mut commands: Commands,
-    mut state: ResMut<ChunkState>,
-    generation_state: Res<ConfigurationState>,
-    input: Res<Input<KeyCode>>,
-    query: Query<Entity, With<Chunk>>) {
-    
-    if !input.pressed(KeyCode::Home) { return }
-
-    query.into_iter().for_each(|e| {
-        commands.entity(e).despawn_recursive();
-    });
-
-    state.chunks.clear();
-    state.chunks_load.clear();
-
-    let copy_center = state.center.clone();
-    let min = 0 - generation_state.loading_distance as i64;
-    let max = generation_state.loading_distance as i64;
-
-    for x in min..max {
-        for z in min..max {
-            state.chunks_load.push(Vector3Int { x: x, y: 0, z: z } + copy_center);
-        }
-    }
-
-}
-
 pub struct SetBlockTypeEvent {
     index: usize,
     chunk_coords: Vector3Int,
@@ -302,17 +277,11 @@ pub struct SetBlockTypeEvent {
     replace: bool,
 }
 
-pub fn spawn_random_blocks(
-    input: Res<Input<KeyCode>>,
-    state: Res<ChunkState>,
-    mut writer: EventWriter<FluidUpdateEvent>,
-) {
-    if !input.just_pressed(KeyCode::I) { return }
-    for (&coords, _) in state.chunks.iter() {
-        if coords.x % 2 == 0 && coords.z % 2 == 0 { continue }
-        writer.send(FluidUpdateEvent(coords, VoxelCoords {x: 6, y : 100, z: 6}, 8));
-    }
+#[derive(Default)]
+pub struct FluidUpdateResult {
+    pub updates: Vec<(Vector3Int, VoxelCoords, u8)>,
 }
+
 
 pub fn handle_set_block_type_events(
     mut reader: EventReader<SetBlockTypeEvent>,
@@ -527,7 +496,7 @@ fn copy_chunk_side(voxels: &VoxelCollection, out_voxels: &mut [Voxel;16*128], in
     };
 }
 
-pub fn spawn_new_chunk(commands: &mut Commands, coords: Vector3Int) {
+fn spawn_new_chunk(commands: &mut Commands, coords: Vector3Int) {
     commands.spawn_bundle((
         Chunk {
             coords: coords,
@@ -540,12 +509,7 @@ pub fn spawn_new_chunk(commands: &mut Commands, coords: Vector3Int) {
     ));
 }
 
-#[derive(Default)]
-pub struct FluidUpdateResult {
-    pub updates: Vec<(Vector3Int, VoxelCoords, u8)>,
-}
-
-pub fn update_initial_fluids(voxels: &VoxelCollection) -> HashMap<usize, u8> {
+fn update_initial_fluids(voxels: &VoxelCollection) -> HashMap<usize, u8> {
     let mut fluid_map = HashMap::<usize, u8>::new();
     for i in 0..voxels.len() {
         let voxel = voxels[i];
@@ -557,7 +521,7 @@ pub fn update_initial_fluids(voxels: &VoxelCollection) -> HashMap<usize, u8> {
     fluid_map
 }
 
-pub fn fluid_update_system(
+fn fluid_update_system(
     mut fluid_event: EventWriter<FluidUpdateEvent>,
     query: Query<(Entity, &Chunk)>,
     mut chunk_state: ResMut<ChunkState>,
@@ -567,7 +531,7 @@ pub fn fluid_update_system(
     }
 }
 
-pub fn fluid_update_event_processor(
+fn fluid_update_event_processor(
     mut fluid_events: EventReader<FluidUpdateEvent>,
     mut set_block_writer: EventWriter<SetBlockTypeEvent>,
 ) {
@@ -583,10 +547,7 @@ pub fn fluid_update_event_processor(
     }
 }
 
-// pub struct NeedsRenderEvent
-pub struct FluidUpdateEvent(Vector3Int, VoxelCoords, u8);
-
-pub fn update_fluids(chunk_coords: Vector3Int, chunk_state: &mut ChunkState, writer: &mut EventWriter<FluidUpdateEvent>) {
+fn update_fluids(chunk_coords: Vector3Int, chunk_state: &mut ChunkState, writer: &mut EventWriter<FluidUpdateEvent>) {
 
     match chunk_state.chunks.get(&chunk_coords) {
         Some(state) => {
@@ -691,3 +652,84 @@ pub fn update_fluids(chunk_coords: Vector3Int, chunk_state: &mut ChunkState, wri
 
 }
 
+fn setup(
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut state: ResMut<ChunkState>,
+    mut material_cache: ResMut<MaterialCache>,
+    config: Res<ConfigurationState>,
+    asset_server: Res<AssetServer>,
+) {
+
+    let texture_handle = asset_server.load("textures/simple_textures.png");
+
+    let chunk_material = materials.add(StandardMaterial {
+        metallic: 0.0,
+        reflectance: 0.0,
+        base_color_texture : Option::Some(texture_handle),
+        ..default()
+    });
+
+    material_cache.chunk_material = Some(chunk_material);
+
+    let center = state.center;
+
+    let loading_distance = config.loading_distance as i64;
+    for x in 0-loading_distance..loading_distance {
+        for z in 0-loading_distance..loading_distance {
+            state.chunks_load.push(Vector3Int { x: x, y: 0, z: z } + center);
+        }
+    }
+}
+
+fn reload_chunk(
+    mut commands: Commands,
+    mut state: ResMut<ChunkState>,
+    generation_state: Res<ConfigurationState>,
+    input: Res<Input<KeyCode>>,
+    query: Query<Entity, With<Chunk>>) {
+    
+    if !input.pressed(KeyCode::Home) { return }
+
+    query.into_iter().for_each(|e| {
+        commands.entity(e).despawn_recursive();
+    });
+
+    state.chunks.clear();
+    state.chunks_load.clear();
+
+    let copy_center = state.center.clone();
+    let min = 0 - generation_state.loading_distance as i64;
+    let max = generation_state.loading_distance as i64;
+
+    for x in min..max {
+        for z in min..max {
+            state.chunks_load.push(Vector3Int { x: x, y: 0, z: z } + copy_center);
+        }
+    }
+
+}
+
+fn generate_structures(
+    state: Res<ChunkState>,
+    query: Query<(Entity, &Chunk), With<GenerateStructure>>,
+    mut commands: Commands,
+) {
+    for (e, chunk) in query.iter() {
+        let needs_generate = match state.chunks.get(&chunk.coords) {
+            Some(chunk_data) => {
+                !chunk_data.has_generated_structures
+            },
+            None => {
+                true 
+            }
+        };
+
+        if needs_generate {
+            // do actual generation steps here 
+
+            // generate caves for this chunk
+        }
+
+        commands.entity(e).remove::<GenerateStructure>();
+    }
+}

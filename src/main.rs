@@ -4,8 +4,8 @@ use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
 use bevy::render::camera::Projection;
 use bevy_egui::EguiPlugin;
+use common::types::VoxelCoords;
 
-use crate::common::types::*;
 use crate::systems::chunk_systems::*;
 
 pub mod common;
@@ -17,13 +17,6 @@ pub mod systems;
 #[derive(Component)]
 struct Moveable;
 
-#[derive(Default)]
-pub struct MaterialCache {
-    chunk_material: Option<Handle<StandardMaterial>>,
-}
-
-
-
 fn main() {
     App::new()
     	.add_plugins(DefaultPlugins)
@@ -31,10 +24,22 @@ fn main() {
         .add_plugin(ChunkPlugin)
         .add_startup_system(setup)
         .add_system(movement)
+        .add_system(spawn_random_blocks)
         .add_system(pan_orbit_camera.after(movement))
         .run();
 }
 
+fn spawn_random_blocks(
+    input: Res<Input<KeyCode>>,
+    state: Res<ChunkState>,
+    mut writer: EventWriter<FluidUpdateEvent>,
+) {
+    if !input.just_pressed(KeyCode::I) { return }
+    for (&coords, _) in state.chunks.iter() {
+        if coords.x % 2 == 0 && coords.z % 2 == 0 { continue }
+        writer.send(FluidUpdateEvent(coords, VoxelCoords {x: 6, y : 100, z: 6}, 8));
+    }
+}
 
 fn setup(
     mut commands: Commands,

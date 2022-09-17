@@ -93,23 +93,6 @@ impl Sub for Vector3 {
 
 
 
-pub struct ChunkData {
-    pub voxels: Vec<Voxel>,
-    pub entity: Option<Entity>,
-    pub has_generated_structures: bool,
-    pub flowing_fluids: HashMap<usize, u8>,
-}
-
-impl Default for ChunkData {
-    fn default() -> Self {
-        Self { 
-            voxels: vec!(), 
-            entity: None, 
-            has_generated_structures: false, 
-            flowing_fluids: HashMap::<usize, u8>::new()
-        }
-    }
-}
 
 
 pub static VECTOR3ZERO: Vector3 = Vector3 {x: 0.0, y: 0.0, z:0.0};
