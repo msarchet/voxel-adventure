@@ -1,4 +1,4 @@
-use std::ops::{Add, Sub};
+use std::ops::{Add, Sub, Mul};
 
 use bevy::{prelude::Entity, utils::HashMap};
 
@@ -55,6 +55,18 @@ impl Add for Vector3Int {
     }
 }
 
+impl Add<Vector3> for Vector3Int {
+    type Output = Self;
+
+    fn add(self, rhs: Vector3) -> Self::Output {
+        Vector3Int {
+            x: self.x + rhs.x as i64,
+            y: self.y + rhs.y as i64,
+            z: self.z + rhs.z as i64,
+        }
+    }
+}
+
 impl Sub for Vector3Int {
     type Output = Self;
 
@@ -63,6 +75,30 @@ impl Sub for Vector3Int {
             x: self.x - other.x,
             y: self.y - other.y,
             z: self.z - other.z
+        }
+    }
+}
+
+impl Sub<Vector3> for Vector3Int {
+    type Output = Self;
+
+    fn sub(self, other: Vector3) -> Self {
+        Self {
+            x: self.x - other.x as i64, 
+            y: self.y - other.y as i64,
+            z: self.z - other.z as i64
+        }
+    }
+}
+
+impl Mul<i64> for Vector3Int {
+    type Output = Self;
+
+    fn mul(self, rhs: i64) -> Self::Output {
+        Self {
+            x: self.x * rhs,
+            y: self.y * rhs,
+            z: self.z * rhs
         }
     }
 }
@@ -79,6 +115,19 @@ impl Add for Vector3 {
     }
 }
 
+impl Add<Vector3Int> for Vector3 {
+    type Output = Self;
+
+    fn add(self, rhs: Vector3Int) -> Self::Output {
+        Self {
+            x: self.x + rhs.x as f64,
+            y: self.y + rhs.y as f64,
+            z: self.z + rhs.z as f64,
+        }
+    }
+}
+
+
 impl Sub for Vector3 {
     type Output = Self;
 
@@ -91,6 +140,29 @@ impl Sub for Vector3 {
     }
 }
 
+impl Sub<Vector3Int> for Vector3 {
+    type Output = Self;
+
+    fn sub(self, rhs: Vector3Int) -> Self::Output {
+        Self {
+            x: self.x - rhs.x as f64,
+            y: self.y - rhs.y as f64,
+            z: self.z - rhs.z as f64,
+        }
+    }
+}
+
+impl Mul<f64> for Vector3 {
+    type Output = Self;
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        Self {
+            x: self.x * rhs, 
+            y: self.y * rhs, 
+            z: self.z * rhs, 
+        }
+    }
+}
 
 
 
@@ -156,3 +228,5 @@ impl TryFrom<u64> for BlockType {
 		  }
     }
 }
+
+pub struct StructureData(u64);

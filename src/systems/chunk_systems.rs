@@ -54,7 +54,6 @@ impl Default for MeshReference {
     }
 }
 
-pub struct StructureData(u64);
 
 pub struct ChunkData {
     pub voxels: Vec<Voxel>,
