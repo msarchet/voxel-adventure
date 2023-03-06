@@ -1,9 +1,8 @@
-use noise::{OpenSimplex, Seedable};
-use rand::SeedableRng;
+use noise::{ OpenSimplex };
 
 use crate::common::types::*;
 
-use super::noise::{noise_with_octaves, noise_with_octaves_01};
+use super::noise::{ noise_with_octaves_01};
 
 #[derive(Eq, PartialEq, Hash)]
 pub enum CaveType {
@@ -13,7 +12,7 @@ pub enum CaveType {
 }
 
 
-pub fn GenerateCave(
+pub fn generate_cave(
 	head: Vector3, 
 	offset: Vector3Int,
 	segement_count: u8,
@@ -22,8 +21,8 @@ pub fn GenerateCave(
 	thickness: f64,
 	segement_length: f64,
 	cave_type: CaveType,
-	mut structure_data: &mut Vec<StructureData>) {
-	let mut cave_noise_gen = OpenSimplex::new();
+	structure_data: &mut Vec<(Vector3Int, Vector3Int)>) {
+	let cave_noise_gen = OpenSimplex::new();
 
 	let mut current_segement_position = head + offset;
 	let noise_head_start = head + offset;
@@ -31,7 +30,8 @@ pub fn GenerateCave(
 	let mut current_noise_position: Vector3 = VECTOR3ZERO;
 
 	let mut offset_position: Vector3;
-	let mut offset_normals: Vector3;
+	let mut offset_normals: Vector3Int;
+
 	let mut offset_floored = VECTOR3_INT_ZERO;
 
 	let mut noise_x_value = 0.0;
@@ -39,6 +39,9 @@ pub fn GenerateCave(
 	let mut noise_z_value = 0.0;
 
 	let mut noise_points = [0.0, 0.0, 0.0];
+
+	let half_segment_count = segement_count as f64 * 0.5;
+
 	for current_segment in 0..segement_count {
 		current_noise_position.x = 0.00053 + noise_head_start.x * 0.5 + (current_segment as f64 * twistiness);
 		current_noise_position.y = 0.00053 + noise_head_start.y * 0.5 + (current_segment as f64 * twistiness);
@@ -93,7 +96,6 @@ pub fn GenerateCave(
 				noise_points[2] = current_noise_scaled.z;
 				noise_y_value = noise_with_octaves_01(&cave_noise_gen, noise_points, 1, y_seed, 0.5);
 
-
 				current_noise_scaled = current_noise_position * 0.03;
 
 				noise_points[0] = current_noise_scaled.x;
@@ -102,10 +104,8 @@ pub fn GenerateCave(
 
 				noise_x_value = noise_with_octaves_01(&cave_noise_gen, noise_points, 1, x_seed, 0.5);
 				noise_z_value = noise_with_octaves_01(&cave_noise_gen, noise_points, 1, z_seed, 0.5);
-			
 			},
 		}
-
 
 		offset_position = Vector3 {
 			x: f64::cos(noise_x_value * std::f64::consts::PI),	
@@ -113,16 +113,15 @@ pub fn GenerateCave(
 			z: f64::cos(noise_z_value * std::f64::consts::PI),	
 		};
 
-		offset_normals = Vector3 {
-			x: 2.0 + f64::abs(f64::max(offset_position.x * thickness, segement_length * offset_position.x)),
-			y: 2.0 + f64::abs(f64::max(offset_position.y * thickness, segement_length * offset_position.x)),
-			z: 2.0 + f64::abs(f64::max(offset_position.z * thickness, segement_length * offset_position.x)),
+		offset_normals = Vector3Int {
+			x: round_to_int(2.0 + f64::abs(f64::max(offset_position.x * thickness, segement_length * offset_position.x))),
+			y: round_to_int(2.0 + f64::abs(f64::max(offset_position.y * thickness, segement_length * offset_position.x))),
+			z: round_to_int(2.0 + f64::abs(f64::max(offset_position.z * thickness, segement_length * offset_position.x))),
 		};
 
-		let half_segment_count = segement_count as f64 * 0.5;
 
 		if cave_type == CaveType::Noodle && f64::abs(current_segment as f64 - half_segment_count) >= 0.3 {
-			offset_normals = offset_normals * 2.0;
+			offset_normals = offset_normals * 2;
 		}
 
 		offset_floored = Vector3Int {
@@ -131,10 +130,9 @@ pub fn GenerateCave(
 			z: round_to_int(offset_position.z * segement_length),
 		};
 
+		structure_data.push((offset_floored, offset_normals));
 		current_segement_position = current_segement_position + offset_floored;
-
 	}
-
 }
 
 fn round_to_int(val: f64) -> i64 {
